@@ -1,8 +1,10 @@
 import asyncio
+import json
 from typing import Any
 
 from gensee_agent.configs.configs import BaseConfig, register_configs
 from gensee_agent.controller.dataclass.tool_use import ToolUse
+from gensee_agent.exceptions.gensee_exceptions import ToolExecutionError
 from gensee_agent.tools.base import _TOOL_REGISTRY
 from gensee_agent.settings import Settings
 
@@ -47,18 +49,48 @@ class ToolManager:
         tool_name = tool_use.tool_name()
         func_name = tool_use.func_name()
         if tool_name not in self.tools:
-            raise ValueError(f"Tool {tool_name} is not available. Available tools: {self.config.available_tools}")
+            raise ToolExecutionError(f"Tool {tool_name} is not available. Available tools: {self.config.available_tools}", retryable=False)
         tool = self.tools[tool_name]
         if func_name not in tool._public_api_metadata:
-            raise ValueError(f"Function {func_name} is not a public API of tool {tool_name}. Available functions: {list(tool._public_api_metadata.keys())}")
+            raise ToolExecutionError(f"Function {func_name} is not a public API of tool {tool_name}. Available functions: {list(tool._public_api_metadata.keys())}", retryable=False)
         func = tool._public_api_metadata[func_name]["function"]
+
+        # Handle and parsing parameters
+        for (param_name, param_value) in tool_use.params.items():
+            if tool._public_api_metadata[func_name]["parameters"][param_name]["required"] is False:
+                if param_value.lower() == "none" or param_value.lower() == "null":
+                    tool_use.params[param_name] = None
+                    continue
+            if tool._public_api_metadata[func_name]["parameters"][param_name]["type"] == "<class 'int'>":
+                try:
+                    tool_use.params[param_name] = int(param_value)
+                except ValueError:
+                    raise ToolExecutionError(f"Parameter {param_name} should be an integer, got {param_value}", retryable=False)
+            if tool._public_api_metadata[func_name]["parameters"][param_name]["type"] == "<class 'float'>":
+                try:
+                    tool_use.params[param_name] = float(param_value)
+                except ValueError:
+                    raise ToolExecutionError(f"Parameter {param_name} should be a float, got {param_value}", retryable=False)
+            if tool._public_api_metadata[func_name]["parameters"][param_name]["type"] == "<class 'bool'>":
+                if param_value.lower() in ["true", "1", "yes"]:
+                    tool_use.params[param_name] = True
+                elif param_value.lower() in ["false", "0", "no"]:
+                    tool_use.params[param_name] = False
+                else:
+                    raise ToolExecutionError(f"Parameter {param_name} should be a boolean, got {param_value}", retryable=False)
+
         if callable(func):
             if asyncio.iscoroutinefunction(func):
-                return await func(tool, **tool_use.params)
+                result = await func(tool, **tool_use.params)
             else:
-                return func(tool, **tool_use.params)
+                result = func(tool, **tool_use.params)
         else:
             raise ValueError(f"{func_name} is not callable.")
+
+        if isinstance(result, dict) or isinstance(result, list):
+            return json.dumps(result)
+        else:
+            return result
 
     def tool_response_to_string(self, tool_use: ToolUse, tool_response: Any) -> str:
         result = f"[{tool_use.api_name}] Result:\n{tool_response}\n"

@@ -1,3 +1,4 @@
+from typing import AsyncIterator, Callable, Optional
 from gensee_agent.configs.configs import BaseConfig, register_configs
 from gensee_agent.controller.history_manager import HistoryManager
 from gensee_agent.controller.message_handler import MessageHandler
@@ -12,20 +13,21 @@ class Controller:
     class Config(BaseConfig):
         name: str  # Name of the controller.
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict, interactive_callback: Optional[Callable[[str], str]] = None):
         self.config = self.Config.from_dict(config)
         self.llm_manager = LLMManager(config)
         self.tool_manager = ToolManager(config)
         self.profile = None
         self.prompt_manager = PromptManager(config)
         self.message_handler = MessageHandler(config)
+        self.interactive_callback = interactive_callback
 
-    async def run(self, task: str):
+    async def run(self, task: str) -> AsyncIterator[str]:
         self.config.pretty_print()
         self.llm_manager.config.pretty_print()
         self.prompt_manager.config.pretty_print()
+        print(f"Available tools: {self.tool_manager.tools.keys()}")
         print(f"Controller {self.config.name} is running...")
-        # simple_prompt = self.prompt_manager.generate_prompt_system_and_user("You are a helpful agent", "Who are you?")
 
         task_manager = TaskManager(
             llm_manager=self.llm_manager,
@@ -35,4 +37,5 @@ class Controller:
         )
 
         task_manager.create_task(task, history_manager=HistoryManager())
-        await task_manager.start()
+        async for chunk in task_manager.start():
+            yield chunk

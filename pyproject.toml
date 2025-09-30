@@ -9,11 +9,16 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "aiohttp>=3.12.15",
     "defusedxml>=0.7.1",
     "docstring-parser>=0.17.0",
     "dotenv>=0.9.9",
+    "fastapi>=0.117.1",
     "jinja2>=3.1.6",
     "openai>=1.109.1",
+    "slack-bolt>=1.25.0",
+    "slack-sdk>=3.36.0",
+    "uvicorn>=0.37.0",
 ]
 
 [tool.setuptools]

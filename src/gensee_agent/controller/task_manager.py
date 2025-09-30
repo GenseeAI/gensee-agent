@@ -1,5 +1,6 @@
 from enum import Enum
-from typing import cast
+from typing import AsyncIterator, cast
+import uuid
 
 from gensee_agent.controller.dataclass.llm_response import LLMResponses
 from gensee_agent.controller.dataclass.llm_use import LLMUse
@@ -9,6 +10,7 @@ from gensee_agent.controller.llm_manager import LLMManager
 from gensee_agent.controller.message_handler import MessageHandler
 from gensee_agent.controller.prompt_manager import PromptManager
 from gensee_agent.controller.tool_manager import ToolManager
+from gensee_agent.exceptions.gensee_exceptions import GenseeError
 
 class TaskState:
     IDLE = 0
@@ -40,6 +42,7 @@ class Action(Enum):
 
 class TaskManager:
     def __init__(self, *, llm_manager: LLMManager, tool_manager: ToolManager, prompt_manager: PromptManager, message_handler: MessageHandler):
+        self.task_id = uuid.uuid4().hex
         self.task_description = ""
         self.task_state = TaskState(TaskState.IDLE)
         self.llm_manager = llm_manager
@@ -58,19 +61,44 @@ class TaskManager:
             user_objective=task_description,
             tool_descriptions=self.tool_manager.tool_descriptions,
         )
-        print(f"System prompt: {system_prompt['content']}")
+        # print(f"System prompt: {system_prompt['content']}")
         llm_use = LLMUse(prompts=[system_prompt])
         llm_use.append_user_prompt(task_description)
         self.history_manager.add_entry("llm_use", llm_use)
         self.next_action = Action.LLM_USE
         self.task_state.set(TaskState.INITIALIZED)
 
-    async def start(self):
+    async def start(self) -> AsyncIterator[str]:
         next_action = self.next_action
         while(next_action != Action.NONE):
-            next_action = await self.step()
+            try:
+                action_messages = {
+                    Action.LLM_USE: "Calling language model...",
+                    Action.TOOL_USE: "Executing tool...",
+                    Action.PARSE_LLM: "Processing language model response...",
+                    Action.PARSE_TOOL: "Processing tool response...",
+                    Action.NONE: "Task completed."
+                }
+                yield action_messages.get(next_action, f"Unknown action: {next_action}")
+                next_action = await self.step()
+            except GenseeError as e:
+                self.task_state.set(TaskState.ERROR)
+                # TODO: Check whether the error is retryable, and if so, maybe retry a few times?
+                print(f"Task encountered an error: {e}")
+                yield f"Task encountered an error: {e}"
+        result = self.history_manager.get_last_entry_of_type("llm_response")
+        if result is None:
+            yield "No result."
+        else:
+            result = cast(LLMResponses, result)
+            if len(result) == 0 or result[-1].content is None:
+                yield "No result."
+            else:
+                yield result[-1].content
 
     async def step(self) -> Action:
+        if self.task_state.get() == TaskState.ERROR:
+            raise ValueError("Task is in error state.")
         if not self.task_state.is_running() and self.task_state.get() != TaskState.INITIALIZED:
             raise ValueError("Task is not running or initialized.")
         if self.next_action == Action.LLM_USE:

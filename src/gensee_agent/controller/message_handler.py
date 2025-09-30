@@ -1,7 +1,10 @@
 from typing import Optional
+from xml.etree.ElementTree import ParseError
 from defusedxml import ElementTree as ET
+from xml.parsers.expat import ExpatError
 
 from gensee_agent.controller.dataclass.tool_use import ToolUse
+from gensee_agent.exceptions.gensee_exceptions import ToolParsingError
 
 class MessageHandler:
     def __init__(self, config: dict):
@@ -22,7 +25,11 @@ class MessageHandler:
 
         # Parse the XML message
         xml = "<root>" + message_str + "</root>"  # Wrap in a root element
-        root = ET.fromstring(xml)
+        try:
+            root = ET.fromstring(xml)
+        except (ParseError, ExpatError) as e:
+            print(f"Error parsing XML: {e}")
+            raise ToolParsingError(f"Error parsing XML: {e}", retryable=False)
 
         tool_use = None
         for elem in root:

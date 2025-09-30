@@ -2,6 +2,8 @@ import inspect
 
 from docstring_parser import parse
 
+from gensee_agent.exceptions.gensee_exceptions import ImplementationError
+
 _TOOL_REGISTRY : dict[str, type["BaseTool"]] = {}
 
 class BaseTool:
@@ -19,7 +21,8 @@ class BaseTool:
 
                 properties = {}
                 signature_params = [p for p in signature.parameters.values() if p.name != "self"]
-                assert len(signature_params) == len(doc.params), f"Method {name} has {len(signature_params)} parameters but {len(doc.params)} documented parameters."
+                if len(signature_params) != len(doc.params):
+                    raise ImplementationError(f"Method {name} has {len(signature_params)} parameters but {len(doc.params)} documented parameters.", retryable=False)
                 for param, doc_param in zip(signature_params, doc.params):
                     properties[param.name] = {
                         "type": str(param.annotation) if param.annotation != inspect.Parameter.empty else (doc_param.type_name or "Any"),
@@ -32,6 +35,7 @@ class BaseTool:
                     "description": doc.short_description if doc else "",
                     "parameters": properties,
                 }
+        print(f"All function metadata: {cls._public_api_metadata}")
 
     def __init__(self, tool_name: str, config: dict):
         pass
