@@ -1,11 +1,12 @@
 import asyncio
 import json
-from typing import Any
+from typing import Any, Awaitable, Callable, Optional
 
 from gensee_agent.configs.configs import BaseConfig, register_configs
 from gensee_agent.controller.dataclass.tool_use import ToolUse
 from gensee_agent.exceptions.gensee_exceptions import ToolExecutionError
 from gensee_agent.tools.base import _TOOL_REGISTRY
+from gensee_agent.tools.system_tools.user_interaction_tool import UserInteractionTool
 from gensee_agent.settings import Settings
 
 class ToolManager:
@@ -14,16 +15,21 @@ class ToolManager:
         available_tools: list[str]  # List of available model names.
 
         def __post_init__(self):
-            for model_name in self.available_tools:
-                if model_name not in _TOOL_REGISTRY:
-                    raise ValueError(f"Tool {model_name} is not registered in the tool registry.")
+            for tool_name in self.available_tools:
+                if tool_name not in _TOOL_REGISTRY:
+                    raise ValueError(f"Tool {tool_name} is not registered in the tool registry.")
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict, interactive_callback: Optional[Callable[[str], Awaitable[str]]] = None):
         self.config = self.Config.from_dict(config)
         self.tools = {
             tool_name: _TOOL_REGISTRY[tool_name](tool_name, config)
             for tool_name in self.config.available_tools
         }
+        if interactive_callback is not None:
+            tool_name = f"system{Settings.SEPARATOR}user_interaction_tool"
+            self.tools[tool_name] = UserInteractionTool(tool_name, config, callback=interactive_callback)
+            self.config.available_tools.append(tool_name)
+
         self.tool_descriptions = self.get_tool_descriptions()
 
     def get_tool_descriptions(self) -> str:

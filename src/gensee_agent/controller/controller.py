@@ -1,4 +1,4 @@
-from typing import AsyncIterator, Callable, Optional
+from typing import AsyncIterator, Awaitable, Callable, Optional
 from gensee_agent.configs.configs import BaseConfig, register_configs
 from gensee_agent.controller.history_manager import HistoryManager
 from gensee_agent.controller.message_handler import MessageHandler
@@ -12,11 +12,17 @@ class Controller:
     @register_configs("controller")
     class Config(BaseConfig):
         name: str  # Name of the controller.
+        allow_user_interaction: bool = False  # Whether to allow user interaction
 
-    def __init__(self, config: dict, interactive_callback: Optional[Callable[[str], str]] = None):
+    def __init__(self, config: dict, interactive_callback: Optional[Callable[[str], Awaitable[str]]] = None):
         self.config = self.Config.from_dict(config)
         self.llm_manager = LLMManager(config)
-        self.tool_manager = ToolManager(config)
+        if self.config.allow_user_interaction:
+            if interactive_callback is None:
+                raise ValueError("interactive_callback must be provided if allow_user_interaction is True")
+            self.tool_manager = ToolManager(config, interactive_callback=interactive_callback)
+        else:
+            self.tool_manager = ToolManager(config)
         self.profile = None
         self.prompt_manager = PromptManager(config)
         self.message_handler = MessageHandler(config)
@@ -34,6 +40,7 @@ class Controller:
             tool_manager=self.tool_manager,
             prompt_manager=self.prompt_manager,
             message_handler=self.message_handler,
+            allow_interaction=self.config.allow_user_interaction,
         )
 
         task_manager.create_task(task, history_manager=HistoryManager())

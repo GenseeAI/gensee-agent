@@ -41,7 +41,7 @@ class Action(Enum):
     PARSE_TOOL = 4
 
 class TaskManager:
-    def __init__(self, *, llm_manager: LLMManager, tool_manager: ToolManager, prompt_manager: PromptManager, message_handler: MessageHandler):
+    def __init__(self, *, llm_manager: LLMManager, tool_manager: ToolManager, prompt_manager: PromptManager, message_handler: MessageHandler, allow_interaction: bool):
         self.task_id = uuid.uuid4().hex
         self.task_description = ""
         self.task_state = TaskState(TaskState.IDLE)
@@ -50,6 +50,7 @@ class TaskManager:
         self.prompt_manager = prompt_manager
         self.message_handler = message_handler
         self.next_action = Action.NONE
+        self.allow_interaction = allow_interaction
 
     def create_task(self, task_description: str, history_manager: HistoryManager):
         # TODO: Haven't used history yet.
@@ -60,6 +61,7 @@ class TaskManager:
         system_prompt = self.prompt_manager.generate_system_prompt_from_template(
             user_objective=task_description,
             tool_descriptions=self.tool_manager.tool_descriptions,
+            allow_interaction=self.allow_interaction
         )
         # print(f"System prompt: {system_prompt['content']}")
         llm_use = LLMUse(prompts=[system_prompt])
@@ -86,6 +88,7 @@ class TaskManager:
                 # TODO: Check whether the error is retryable, and if so, maybe retry a few times?
                 print(f"Task encountered an error: {e}")
                 yield f"Task encountered an error: {e}"
+                return
         result = self.history_manager.get_last_entry_of_type("llm_response")
         if result is None:
             yield "No result."

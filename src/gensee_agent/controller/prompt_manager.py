@@ -28,6 +28,7 @@ class PromptManager:
         else:
             from gensee_agent.prompts.data.generic_template import TEMPLATE as default_template
             self.template = default_template
+
         self.template_variables = jinja2.meta.find_undeclared_variables(jinja2.Environment().parse(self.template))
         if not self.template_variables.issubset(set(_AVAILABLE_PROMPT_SECTIONS)):
             raise ValueError(f"Template variables {self.template_variables} do not match available prompt sections {_AVAILABLE_PROMPT_SECTIONS}")
@@ -42,6 +43,7 @@ class PromptManager:
                     "template": section_module.TEMPLATE,
                     "variables": jinja2.meta.find_undeclared_variables(jinja2.Environment().parse(section_module.TEMPLATE)),
                 }
+                print(f"Loaded prompt section {section} with variables {self.sections[section]['variables']}")
             except ImportError:
                 raise ImportError(f"Could not import prompt section {section} from gensee_agent.prompts.data.{section}")
 
@@ -61,14 +63,3 @@ class PromptManager:
             filled_sections[section_name] = rendered_section
         full_prompt = template.render(**filled_sections)
         return {"role": "system", "content": full_prompt}
-
-    # def append_prompt(self, messages: list, user_prompt: str, role: str) -> list:
-    #     new_messages = messages.copy()
-    #     new_messages.append({"role": role, "content": user_prompt})
-    #     return new_messages
-
-    # def append_user_prompt(self, messages: list, user_prompt: str) -> list:
-    #     return self.append_prompt(messages, user_prompt, "user")
-
-    # def append_assistant_prompt(self, messages: list, assistant_prompt: str) -> list:
-    #     return self.append_prompt(messages, assistant_prompt, "assistant")
