@@ -35,18 +35,21 @@ class GenseeSearch(BaseTool):
         }
         headers = {
             'Content-Type': 'application/json',
-            'Authorization': f'Bearer {self.config.config_key}'
+            'Authorization': f'Bearer {self.config.gensee_api_key}'
         }
 
+        body = ""
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, json=payload, headers=headers) as response:
+                    body = await response.text()
                     response.raise_for_status()
                     response_json = await response.json()
                     response_json["query"] = query
                     return response_json
         except aiohttp.ClientError as e:
             print(f"Error calling endpoint: {e}")
+            print(f"Response body: {body}")
             raise ToolExecutionError(f"Error calling endpoint: {e}", retryable=True)
 
 
