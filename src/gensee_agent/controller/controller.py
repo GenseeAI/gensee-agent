@@ -14,25 +14,35 @@ class Controller:
         name: str  # Name of the controller.
         allow_user_interaction: bool = False  # Whether to allow user interaction
 
-    def __init__(self, config: dict, interactive_callback: Optional[Callable[[str], Awaitable[str]]] = None):
+    def __init__(self, config: dict, token: str, interactive_callback: Optional[Callable[[str], Awaitable[str]]] = None):
+        assert token == "secret_token", "This class should be initialized with create() method, not directly."
         self.config = self.Config.from_dict(config)
         self.llm_manager = LLMManager(config)
-        if self.config.allow_user_interaction:
-            if interactive_callback is None:
-                raise ValueError("interactive_callback must be provided if allow_user_interaction is True")
-            self.tool_manager = ToolManager(config, interactive_callback=interactive_callback)
-        else:
-            self.tool_manager = ToolManager(config)
         self.profile = None
         self.prompt_manager = PromptManager(config)
         self.message_handler = MessageHandler(config)
         self.interactive_callback = interactive_callback
+        self.tool_manager = None
+        self.history_manager = HistoryManager(config)
+
+    @classmethod
+    async def create(cls, config: dict, interactive_callback: Optional[Callable[[str], Awaitable[str]]] = None) -> "Controller":
+        self = cls(config, token="secret_token", interactive_callback=interactive_callback)
+        if self.config.allow_user_interaction:
+            if interactive_callback is None:
+                raise ValueError("interactive_callback must be provided if allow_user_interaction is True")
+            self.tool_manager = await ToolManager.create(config, interactive_callback=interactive_callback)
+        else:
+            self.tool_manager = await ToolManager.create(config)
+        return self
 
     async def run(self, task: str) -> AsyncIterator[str]:
+        assert isinstance(self.tool_manager, ToolManager)
+
         self.config.pretty_print()
         self.llm_manager.config.pretty_print()
         self.prompt_manager.config.pretty_print()
-        print(f"Available tools: {self.tool_manager.tools.keys()}")
+        print(f"Available tools: {list(self.tool_manager.tools.values()) if hasattr(self.tool_manager, 'tools') and self.tool_manager.tools else []}")
         print(f"Controller {self.config.name} is running...")
 
         task_manager = TaskManager(
@@ -43,6 +53,6 @@ class Controller:
             allow_interaction=self.config.allow_user_interaction,
         )
 
-        task_manager.create_task(task, history_manager=HistoryManager())
+        task_manager.create_task(task, history_manager=HistoryManager(self.history_manager.config.to_dict()))
         async for chunk in task_manager.start():
             yield chunk

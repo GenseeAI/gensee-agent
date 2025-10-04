@@ -22,5 +22,24 @@
     "slack_tool": {
         "slack_bot_token": "xoxb-[token]",
         "max_channel_size": 200
+    },
+
+    "mcp_hub": {
+        "allowed_mcps": {
+            "weather": {
+                "type": "stdio",
+                "description": "A local MCP server for testing",
+                "path_or_address": "[root-path]/src/scripts/example_mcp_server/weather.py"
+            },
+            "local_time": {
+                "type": "stdio",
+                "description": "A local MCP server for testing",
+                "path_or_address": "[root-path]/src/scripts/example_mcp_server/local_time.py"
+            }
+        }
+    },
+
+    "history_manager": {
+        "history_dump_path": "[root-path]/src/scripts/simple_run/dump.json"
     }
 }

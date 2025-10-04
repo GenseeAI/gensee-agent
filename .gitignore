@@ -17,3 +17,6 @@ uv.lock
 
 # Secret files
 .secret.*
+
+# Data files
+dump*.json

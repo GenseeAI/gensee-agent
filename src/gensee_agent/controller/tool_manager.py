@@ -4,8 +4,10 @@ from typing import Any, Awaitable, Callable, Optional
 
 from gensee_agent.configs.configs import BaseConfig, register_configs
 from gensee_agent.controller.dataclass.tool_use import ToolUse
+from gensee_agent.controller.mcp_hub import McpHub
 from gensee_agent.exceptions.gensee_exceptions import ToolExecutionError
 from gensee_agent.tools.base import _TOOL_REGISTRY
+from gensee_agent.tools.system_tools.mcp_tool import McpTool
 from gensee_agent.tools.system_tools.user_interaction_tool import UserInteractionTool
 from gensee_agent.settings import Settings
 
@@ -13,13 +15,15 @@ class ToolManager:
     @register_configs("tool_manager")
     class Config(BaseConfig):
         available_tools: list[str]  # List of available model names.
+        use_mcp: bool = False  # Whether to use MCP for tool execution.
 
         def __post_init__(self):
             for tool_name in self.available_tools:
                 if tool_name not in _TOOL_REGISTRY:
                     raise ValueError(f"Tool {tool_name} is not registered in the tool registry.")
 
-    def __init__(self, config: dict, interactive_callback: Optional[Callable[[str], Awaitable[str]]] = None):
+    def __init__(self, config: dict, token: str, interactive_callback: Optional[Callable[[str], Awaitable[str]]] = None):
+        assert token == "secret_token", "This class should be initialized with create() method, not directly."
         self.config = self.Config.from_dict(config)
         self.tools = {
             tool_name: _TOOL_REGISTRY[tool_name](tool_name, config)
@@ -29,6 +33,21 @@ class ToolManager:
             tool_name = f"system{Settings.SEPARATOR}user_interaction_tool"
             self.tools[tool_name] = UserInteractionTool(tool_name, config, callback=interactive_callback)
             self.config.available_tools.append(tool_name)
+
+    @classmethod
+    async def create(cls, config: dict, interactive_callback: Optional[Callable[[str], Awaitable[str]]] = None) -> "ToolManager":
+        self = cls(config, token="secret_token", interactive_callback=interactive_callback)
+        await self.init_mcp(config)
+        return self
+
+    async def init_mcp(self, config: dict):
+        if self.config.use_mcp:
+            self.mcp_hub = await McpHub.create(config)
+            for mcp_name, mcp_meta in self.mcp_hub.mcp_meta.items():
+                tool_name = f"system{Settings.SEPARATOR}mcp{Settings.SEPARATOR}{mcp_name}"
+                self.tools[tool_name] = McpTool(tool_name, config, mcp_meta["tools"], mcp_meta["session"])
+                self.config.available_tools.append(tool_name)
+                print(f"Connected to MCP {mcp_name} with tools:", [tool.name for tool in mcp_meta.get("tools", [])])
 
         self.tool_descriptions = self.get_tool_descriptions()
 
@@ -72,7 +91,8 @@ class ToolManager:
                     tool_use.params[param_name] = int(param_value)
                 except ValueError:
                     raise ToolExecutionError(f"Parameter {param_name} should be an integer, got {param_value}", retryable=False)
-            if tool._public_api_metadata[func_name]["parameters"][param_name]["type"] == "<class 'float'>":
+            # type == number is from MCP.
+            if tool._public_api_metadata[func_name]["parameters"][param_name]["type"] == "<class 'float'>" or tool._public_api_metadata[func_name]["parameters"][param_name]["type"] == "number":
                 try:
                     tool_use.params[param_name] = float(param_value)
                 except ValueError:

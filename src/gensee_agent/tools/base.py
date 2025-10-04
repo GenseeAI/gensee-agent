@@ -8,13 +8,10 @@ _TOOL_REGISTRY : dict[str, type["BaseTool"]] = {}
 
 class BaseTool:
 
-    _public_api_metadata: dict[str, dict] = {}
-
-    def __init_subclass__(cls) -> None:
-        super().__init_subclass__()
-
-        cls._public_api_metadata = {}
-        for name, func in cls.__dict__.items():
+    def __init__(self, tool_name: str, config: dict):
+        self._public_api_metadata = {}
+        # Use self.__class__.__dict__ to get class methods, not instance attributes
+        for name, func in self.__class__.__dict__.items():
             if callable(func) and getattr(func, "_is_public_api", False):
                 signature = inspect.signature(func)
                 doc = parse(inspect.getdoc(func) or "")
@@ -30,18 +27,21 @@ class BaseTool:
                         "required": param.default == inspect.Parameter.empty,
                     }
 
-                cls._public_api_metadata[name] = {
+                self._public_api_metadata[name] = {
                     "function": func,
                     "description": doc.short_description if doc else "",
                     "parameters": properties,
                 }
-        print(f"All function metadata: {cls._public_api_metadata}")
+        print(f"All function metadata: {self._public_api_metadata}")
 
-    def __init__(self, tool_name: str, config: dict):
-        pass
+
+    def __repr__(self) -> str:
+        api_names = list(self._public_api_metadata.keys())
+        return f"<Tool {self.__class__.__name__} with APIs: {api_names}>"
 
 def register_tool(tool_name: str, tool_class: type[BaseTool]):
     assert tool_name is not None and tool_name != "", "tool_name should not be empty."
+    assert not tool_name.startswith("system"), 'tool_name should not start with "system".'
     assert tool_name not in _TOOL_REGISTRY, f"tool_name {tool_name} already registered."
     assert issubclass(tool_class, BaseTool), "tool_class should be a subclass of BaseTool."
     _TOOL_REGISTRY[tool_name] = tool_class

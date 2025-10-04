@@ -4,17 +4,24 @@ from typing import Self, dataclass_transform
 _REGISTRY: dict[str, type] = {}
 
 class BaseConfig:
-    config_key: str  # This will be set by the decorator.
+    _config_key: str  # This will be set by the decorator.
 
     @classmethod
     def from_dict(cls, config: dict) -> Self:
         raise NotImplementedError("This method is defined in the @dataclass_transform decorator and BaseConfig should not be used without the decorator.")
 
+    def to_dict(self) -> dict:
+        return {
+            self._config_key: {
+                field: getattr(self, field) for field in self.__dataclass_fields__  # type: ignore[attr-defined]
+            }
+        }
+
     def pretty_print(self):
         """
         Print the parsed value, also print if the values are different from the default values.
         """
-        print(f"Configuration for {self.config_key}:")
+        print(f"Configuration for {self._config_key}:")
         for field_name, field in self.__dataclass_fields__.items():  # type: ignore[attr-defined]
             default_value = field.default
             if default_value is MISSING:
@@ -39,7 +46,7 @@ def register_configs(config_key: str):
             selected_config = config.get(config_key, {})
             return cls(**selected_config)
         cls.from_dict = from_dict
-        cls.config_key = config_key
+        cls._config_key = config_key
 
         assert config_key is not None and config_key != "", "config_key should not be empty."
         assert config_key not in _REGISTRY, f"config_key {config_key} already registered."
