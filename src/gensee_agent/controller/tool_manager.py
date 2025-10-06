@@ -1,5 +1,9 @@
 import asyncio
+from dataclasses import field
+import importlib.util
 import json
+import os
+from pathlib import Path
 from typing import Any, Awaitable, Callable, Optional
 
 from gensee_agent.configs.configs import BaseConfig, register_configs
@@ -16,15 +20,28 @@ class ToolManager:
     class Config(BaseConfig):
         available_tools: list[str]  # List of available model names.
         use_mcp: bool = False  # Whether to use MCP for tool execution.
-
-        def __post_init__(self):
-            for tool_name in self.available_tools:
-                if tool_name not in _TOOL_REGISTRY:
-                    raise ValueError(f"Tool {tool_name} is not registered in the tool registry.")
+        user_tool_paths: list[str] = field(default_factory=list)  # List of paths to user-defined tool scripts.
 
     def __init__(self, config: dict, token: str, interactive_callback: Optional[Callable[[str], Awaitable[str]]] = None):
         assert token == "secret_token", "This class should be initialized with create() method, not directly."
         self.config = self.Config.from_dict(config)
+        if self.config.user_tool_paths:
+            for path in self.config.user_tool_paths:
+                # Dynamically load user-defined tools from the specified paths
+                for file_path in Path(path).glob("*.py"):
+                    module_name = os.path.splitext(os.path.basename(file_path))[0]
+                    spec = importlib.util.spec_from_file_location(module_name, file_path)
+                    if spec and spec.loader:
+                        module = importlib.util.module_from_spec(spec)
+                        spec.loader.exec_module(module)
+                    else:
+                        raise ImportError(f"Could not load module from path: {path}")
+                
+        # Check tools are available
+        for tool_name in self.config.available_tools:
+            if tool_name not in _TOOL_REGISTRY:
+                raise ValueError(f"Tool {tool_name} is not registered in the tool registry.")
+            
         self.tools = {
             tool_name: _TOOL_REGISTRY[tool_name](tool_name, config)
             for tool_name in self.config.available_tools
