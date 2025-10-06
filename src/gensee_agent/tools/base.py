@@ -1,8 +1,9 @@
 import inspect
+from typing import Awaitable, Callable
 
 from docstring_parser import parse
 
-from gensee_agent.exceptions.gensee_exceptions import ImplementationError
+from gensee_agent.exceptions.gensee_exceptions import ImplementationError, ToolExecutionError
 
 _TOOL_REGISTRY : dict[str, type["BaseTool"]] = {}
 
@@ -10,6 +11,8 @@ class BaseTool:
 
     def __init__(self, tool_name: str, config: dict):
         self._public_api_metadata = {}
+        self._interaction_func = None
+
         # Use self.__class__.__dict__ to get class methods, not instance attributes
         for name, func in self.__class__.__dict__.items():
             if callable(func) and getattr(func, "_is_public_api", False):
@@ -38,6 +41,15 @@ class BaseTool:
     def __repr__(self) -> str:
         api_names = list(self._public_api_metadata.keys())
         return f"<Tool {self.__class__.__name__} with APIs: {api_names}>"
+    
+    def set_interaction_func(self, func: Callable[[str], Awaitable[str]]):
+        self._interaction_func = func
+
+    async def call_interaction_func(self, question: str) -> str:
+        if self._interaction_func is None:
+            raise ToolExecutionError("Interaction function is not set for this tool.", retryable=False)
+        return await self._interaction_func(question)
+
 
 def register_tool(tool_name: str, tool_class: type[BaseTool]):
     assert tool_name is not None and tool_name != "", "tool_name should not be empty."

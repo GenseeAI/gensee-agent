@@ -1,7 +1,7 @@
 {
     "controller": {
         "name": "gensee_agent",
-        "allow_user_interaction": true
+        "allow_user_interaction": false
     },
 
     "llm_manager": {

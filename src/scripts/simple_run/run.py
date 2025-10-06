@@ -20,7 +20,9 @@ async def main():
     # task = "List all channels in the Slack workspace."
     # task = "Summarize recent conversations in channel 'random' since the beginning of August, and count the number of messages."
     # task = "Summarize recent conversations in channel 'random', and count the number of messages."
-    task = "Tell me the current time and what's the weather like today in Fremont, CA?"
+    # task = "Tell me the current time and what's the weather like today in Fremont, CA?"
+    # task = "List the next 5 events on my Google Calendar."
+    task = "Set up a meeting with example@example.com tomorrow between 1 and 2, to discuss the project progress."
 
     config_path = os.path.join(os.path.dirname(__file__), "config.json")
     config = json.load(open(config_path, "r"))

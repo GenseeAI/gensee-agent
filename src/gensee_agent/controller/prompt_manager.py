@@ -10,6 +10,7 @@ _AVAILABLE_PROMPT_SECTIONS = [
     "agent_role",
     "tool_use",
     "objective",
+    "context",
 ]
 
 class PromptManager:

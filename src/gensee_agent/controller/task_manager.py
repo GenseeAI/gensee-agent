@@ -52,7 +52,7 @@ class TaskManager:
         self.next_action = Action.NONE
         self.allow_interaction = allow_interaction
 
-    def create_task(self, task_description: str, history_manager: HistoryManager):
+    def create_task(self, task_description: str, history_manager: HistoryManager, additional_context: str = None):
         # TODO: Haven't used history yet.
         self.history_manager = history_manager
         self.task_description = task_description
@@ -61,7 +61,8 @@ class TaskManager:
         system_prompt = self.prompt_manager.generate_system_prompt_from_template(
             user_objective=task_description,
             tool_descriptions=self.tool_manager.tool_descriptions,
-            allow_interaction=self.allow_interaction
+            allow_interaction=self.allow_interaction,
+            additional_context=additional_context,
         )
         # print(f"System prompt: {system_prompt['content']}")
         llm_use = LLMUse(prompts=[system_prompt])

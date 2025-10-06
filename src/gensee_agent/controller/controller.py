@@ -36,7 +36,7 @@ class Controller:
             self.tool_manager = await ToolManager.create(config)
         return self
 
-    async def run(self, task: str) -> AsyncIterator[str]:
+    async def run(self, task: str, additional_context: str = None) -> AsyncIterator[str]:
         assert isinstance(self.tool_manager, ToolManager)
 
         self.config.pretty_print()
@@ -53,6 +53,6 @@ class Controller:
             allow_interaction=self.config.allow_user_interaction,
         )
 
-        task_manager.create_task(task, history_manager=HistoryManager(self.history_manager.config.to_dict()))
+        task_manager.create_task(task, history_manager=HistoryManager(self.history_manager.config.to_dict()), additional_context=additional_context)
         async for chunk in task_manager.start():
             yield chunk

@@ -8,4 +8,8 @@ TEMPLATE = """
 ====
 
 {{objective}}
+
+====
+
+{{context}}
 """

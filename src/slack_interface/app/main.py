@@ -69,7 +69,7 @@ async def lifespan(app: FastAPI):
     global gensee_agent_controller
     config_path = os.path.join(os.path.dirname(__file__), "config.json")
     config = json.load(open(config_path, "r"))
-    gensee_agent_controller = Controller(config)
+    gensee_agent_controller = await Controller.create(config)
     logging.info("✅ Gensee Agent Controller initialized")
 
     try:

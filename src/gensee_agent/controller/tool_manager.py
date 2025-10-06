@@ -48,7 +48,14 @@ class ToolManager:
         }
         if interactive_callback is not None:
             tool_name = f"system{Settings.SEPARATOR}user_interaction_tool"
-            self.tools[tool_name] = UserInteractionTool(tool_name, config, callback=interactive_callback)
+            interaction_tool = UserInteractionTool(tool_name, config, callback=interactive_callback)
+
+            # Update existing tooling (not including Interaction Tool and MCP tools) to allow interactions
+            for existing_tool in self.tools.values():
+                existing_tool.set_interaction_func(interaction_tool.ask_followup_question)    
+
+            # Add the interaction tool to the tool manager
+            self.tools[tool_name] = interaction_tool
             self.config.available_tools.append(tool_name)
 
     @classmethod
@@ -100,7 +107,7 @@ class ToolManager:
         # Handle and parsing parameters
         for (param_name, param_value) in tool_use.params.items():
             if tool._public_api_metadata[func_name]["parameters"][param_name]["required"] is False:
-                if param_value.lower() == "none" or param_value.lower() == "null":
+                if param_value is not None and (param_value.lower() == "none" or param_value.lower() == "null"):
                     tool_use.params[param_name] = None
                     continue
             if tool._public_api_metadata[func_name]["parameters"][param_name]["type"] == "<class 'int'>":
