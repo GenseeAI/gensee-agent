@@ -8,6 +8,7 @@ from gensee_agent.configs.configs import BaseConfig, register_configs
 
 _AVAILABLE_PROMPT_SECTIONS = [
     "agent_role",
+    "rules",
     "tool_use",
     "objective",
     "context",

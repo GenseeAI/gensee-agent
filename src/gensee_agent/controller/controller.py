@@ -13,6 +13,7 @@ class Controller:
     class Config(BaseConfig):
         name: str  # Name of the controller.
         allow_user_interaction: bool = False  # Whether to allow user interaction
+        streaming: bool = False  # Whether to enable streaming mode.
 
     def __init__(self, config: dict, token: str, interactive_callback: Optional[Callable[[str], Awaitable[str]]] = None):
         assert token == "secret_token", "This class should be initialized with create() method, not directly."
@@ -51,6 +52,7 @@ class Controller:
             prompt_manager=self.prompt_manager,
             message_handler=self.message_handler,
             allow_interaction=self.config.allow_user_interaction,
+            streaming=self.config.streaming,
         )
 
         task_manager.create_task(task, history_manager=HistoryManager(self.history_manager.config.to_dict()), additional_context=additional_context)

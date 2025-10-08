@@ -1,5 +1,5 @@
 from abc import ABC
-from typing import Any
+from typing import Any, AsyncGenerator
 
 from gensee_agent.controller.dataclass.llm_response import LLMResponses
 
@@ -11,6 +11,9 @@ class BaseModel(ABC):
         pass
 
     async def completion(self, messages: list) -> Any:
+        raise NotImplementedError("This method should be overridden by subclasses.")
+
+    async def completion_stream(self, messages: list) -> AsyncGenerator[Any, None]:
         raise NotImplementedError("This method should be overridden by subclasses.")
 
     def to_llm_responses(self, response: Any) -> LLMResponses:

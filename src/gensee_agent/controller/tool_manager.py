@@ -12,7 +12,7 @@ from gensee_agent.controller.mcp_hub import McpHub
 from gensee_agent.exceptions.gensee_exceptions import ToolExecutionError
 from gensee_agent.tools.base import _TOOL_REGISTRY
 from gensee_agent.tools.system_tools.mcp_tool import McpTool
-from gensee_agent.tools.system_tools.user_interaction_tool import UserInteractionTool
+from gensee_agent.tools.system_tools.user_interaction_tool import UserInteraction
 from gensee_agent.settings import Settings
 
 class ToolManager:
@@ -36,23 +36,23 @@ class ToolManager:
                         spec.loader.exec_module(module)
                     else:
                         raise ImportError(f"Could not load module from path: {path}")
-                
+
         # Check tools are available
         for tool_name in self.config.available_tools:
             if tool_name not in _TOOL_REGISTRY:
                 raise ValueError(f"Tool {tool_name} is not registered in the tool registry.")
-            
+
         self.tools = {
             tool_name: _TOOL_REGISTRY[tool_name](tool_name, config)
             for tool_name in self.config.available_tools
         }
         if interactive_callback is not None:
-            tool_name = f"system{Settings.SEPARATOR}user_interaction_tool"
-            interaction_tool = UserInteractionTool(tool_name, config, callback=interactive_callback)
+            tool_name = f"system{Settings.SEPARATOR}user_interaction"
+            interaction_tool = UserInteraction(tool_name, config, callback=interactive_callback)
 
             # Update existing tooling (not including Interaction Tool and MCP tools) to allow interactions
             for existing_tool in self.tools.values():
-                existing_tool.set_interaction_func(interaction_tool.ask_followup_question)    
+                existing_tool.set_interaction_func(interaction_tool.ask_followup_question)
 
             # Add the interaction tool to the tool manager
             self.tools[tool_name] = interaction_tool
@@ -107,21 +107,21 @@ class ToolManager:
         # Handle and parsing parameters
         for (param_name, param_value) in tool_use.params.items():
             if tool._public_api_metadata[func_name]["parameters"][param_name]["required"] is False:
-                if param_value is not None and (param_value.lower() == "none" or param_value.lower() == "null"):
+                if param_value is not None and isinstance(param_value, str) and (param_value.lower() == "none" or param_value.lower() == "null"):
                     tool_use.params[param_name] = None
                     continue
-            if tool._public_api_metadata[func_name]["parameters"][param_name]["type"] == "<class 'int'>":
+            if tool._public_api_metadata[func_name]["parameters"][param_name]["type"] == "<class 'int'>" and isinstance(param_value, str):
                 try:
                     tool_use.params[param_name] = int(param_value)
                 except ValueError:
                     raise ToolExecutionError(f"Parameter {param_name} should be an integer, got {param_value}", retryable=False)
             # type == number is from MCP.
-            if tool._public_api_metadata[func_name]["parameters"][param_name]["type"] == "<class 'float'>" or tool._public_api_metadata[func_name]["parameters"][param_name]["type"] == "number":
+            if isinstance(param_value, str) and (tool._public_api_metadata[func_name]["parameters"][param_name]["type"] == "<class 'float'>" or tool._public_api_metadata[func_name]["parameters"][param_name]["type"] == "number"):
                 try:
                     tool_use.params[param_name] = float(param_value)
                 except ValueError:
                     raise ToolExecutionError(f"Parameter {param_name} should be a float, got {param_value}", retryable=False)
-            if tool._public_api_metadata[func_name]["parameters"][param_name]["type"] == "<class 'bool'>":
+            if isinstance(param_value, str) and tool._public_api_metadata[func_name]["parameters"][param_name]["type"] == "<class 'bool'>":
                 if param_value.lower() in ["true", "1", "yes"]:
                     tool_use.params[param_name] = True
                 elif param_value.lower() in ["false", "0", "no"]:

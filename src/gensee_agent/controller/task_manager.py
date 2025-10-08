@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import AsyncIterator, cast
+from typing import AsyncIterator, Optional, cast
 import uuid
 
 from gensee_agent.controller.dataclass.llm_response import LLMResponses
@@ -41,7 +41,10 @@ class Action(Enum):
     PARSE_TOOL = 4
 
 class TaskManager:
-    def __init__(self, *, llm_manager: LLMManager, tool_manager: ToolManager, prompt_manager: PromptManager, message_handler: MessageHandler, allow_interaction: bool):
+    def __init__(self, *,
+                 llm_manager: LLMManager, tool_manager: ToolManager, prompt_manager: PromptManager, message_handler: MessageHandler,
+                 allow_interaction: bool,
+                 streaming: bool):
         self.task_id = uuid.uuid4().hex
         self.task_description = ""
         self.task_state = TaskState(TaskState.IDLE)
@@ -51,8 +54,9 @@ class TaskManager:
         self.message_handler = message_handler
         self.next_action = Action.NONE
         self.allow_interaction = allow_interaction
+        self.streaming = streaming  # Not used yet
 
-    def create_task(self, task_description: str, history_manager: HistoryManager, additional_context: str = None):
+    def create_task(self, task_description: str, history_manager: HistoryManager, additional_context: Optional[str] = None):
         # TODO: Haven't used history yet.
         self.history_manager = history_manager
         self.task_description = task_description
@@ -67,7 +71,7 @@ class TaskManager:
         # print(f"System prompt: {system_prompt['content']}")
         llm_use = LLMUse(prompts=[system_prompt])
         llm_use.append_user_prompt(task_description)
-        self.history_manager.add_entry("llm_use", llm_use)
+        self.history_manager.add_entry("llm_use", title="initiate task", entry=llm_use)
         self.next_action = Action.LLM_USE
         self.task_state.set(TaskState.INITIALIZED)
 
@@ -75,14 +79,7 @@ class TaskManager:
         next_action = self.next_action
         while(next_action != Action.NONE):
             try:
-                action_messages = {
-                    Action.LLM_USE: "Calling language model...",
-                    Action.TOOL_USE: "Executing tool...",
-                    Action.PARSE_LLM: "Processing language model response...",
-                    Action.PARSE_TOOL: "Processing tool response...",
-                    Action.NONE: "Task completed."
-                }
-                yield action_messages.get(next_action, f"Unknown action: {next_action}")
+                yield self.history_manager.get_last_entry_title() + "\n"
                 next_action = await self.step()
             except GenseeError as e:
                 self.task_state.set(TaskState.ERROR)
@@ -112,7 +109,7 @@ class TaskManager:
                 raise ValueError("No previous LLM use found in history.")
             last_llm_use = cast(LLMUse, last_llm_use)
             result = await self.llm_manager.completion(last_llm_use)
-            self.history_manager.add_entry("llm_response", result)
+            self.history_manager.add_entry("llm_response", result[-1].title, result)
             print(f"LLM response: {result}")
             self.next_action = Action.PARSE_LLM
 
@@ -129,7 +126,7 @@ class TaskManager:
                 tool_use = None
 
             if tool_use is not None:
-                self.history_manager.add_entry("tool_use", tool_use)
+                self.history_manager.add_entry("tool_use", title=f"Prepare to call {tool_use.title()}", entry=tool_use)
                 print(f"Parsed tool use: {tool_use}")
                 self.next_action = Action.TOOL_USE
             else:
@@ -143,7 +140,7 @@ class TaskManager:
                 raise ValueError("No previous tool use found in history.")
             last_tool_use = cast(ToolUse, last_tool_use)
             result = await self.tool_manager.execute(last_tool_use)
-            self.history_manager.add_entry("tool_response", result)
+            self.history_manager.add_entry("tool_response", title=f"Getting result of {last_tool_use.title()}", entry=result)
             print(f"Tool response: {result}")
             self.next_action = Action.PARSE_TOOL
 
@@ -169,7 +166,7 @@ class TaskManager:
             if llm_response[-1].content is not None:
                 new_llm_use.append_assistant_prompt(llm_response[-1].content)
             new_llm_use.append_user_prompt(self.tool_manager.tool_response_to_string(tool_use, tool_response))
-            self.history_manager.add_entry("llm_use", new_llm_use)
+            self.history_manager.add_entry("llm_use", title=f"Relay to LLM of {tool_use.title()}", entry=new_llm_use)
             self.next_action = Action.LLM_USE
 
         else:

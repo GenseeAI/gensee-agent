@@ -1,3 +1,4 @@
+from typing import AsyncGenerator
 from gensee_agent.configs.configs import BaseConfig, register_configs
 from gensee_agent.controller.dataclass.llm_response import LLMResponses
 from gensee_agent.controller.dataclass.llm_use import LLMUse
@@ -32,3 +33,11 @@ class LLMManager:
         raw_response = await model.completion(llm_use.prompts)
         print("Raw response: ", raw_response)
         return model.to_llm_responses(raw_response)
+
+    async def completion_stream(self, llm_use: LLMUse) -> AsyncGenerator[LLMResponses, None]:
+        model_name = llm_use.model_name or self.config.default_model
+        if model_name not in self.models:
+            raise ValueError(f"Model {model_name} is not available. Available models: {self.config.available_models}")
+        model = self.models[model_name]
+        async for chunk in model.completion_stream(llm_use.prompts):
+            yield model.to_llm_responses(chunk)

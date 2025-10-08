@@ -41,7 +41,7 @@ class BaseTool:
     def __repr__(self) -> str:
         api_names = list(self._public_api_metadata.keys())
         return f"<Tool {self.__class__.__name__} with APIs: {api_names}>"
-    
+
     def set_interaction_func(self, func: Callable[[str], Awaitable[str]]):
         self._interaction_func = func
 
@@ -49,7 +49,6 @@ class BaseTool:
         if self._interaction_func is None:
             raise ToolExecutionError("Interaction function is not set for this tool.", retryable=False)
         return await self._interaction_func(question)
-
 
 def register_tool(tool_name: str, tool_class: type[BaseTool]):
     assert tool_name is not None and tool_name != "", "tool_name should not be empty."

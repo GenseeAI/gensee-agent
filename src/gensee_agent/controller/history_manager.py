@@ -1,3 +1,4 @@
+from datetime import datetime
 import json
 import os
 from typing import Any, Optional
@@ -25,17 +26,18 @@ class HistoryManager:
     def __init__(self, config: dict):
         self.config = self.Config.from_dict(config)
         if self.config.history_dump_path is not None:
-            # Add a uuid suffix before the file extension to avoid overwriting
+            # Add the current timestamp to the dump path to avoid overwriting
             base, ext = os.path.splitext(self.config.history_dump_path)
-            self.dump_path = f"{base}_{os.urandom(4).hex()}{ext}"
+            self.dump_path = f"{base}_{datetime.now().strftime('%Y%m%d-%H%M%S')}{ext}"
         else:
             self.dump_path = None
 
         self.history = []
 
-    def add_entry(self, name: str, entry: Any):
+    def add_entry(self, name: str, title: str, entry: Any):
         self.history.append({
             "name": name,
+            "title": title,
             "entry": entry
         })
         if self.dump_path is not None:
@@ -47,6 +49,11 @@ class HistoryManager:
             if record["name"] == name:
                 return record["entry"]
         return None
+
+    def get_last_entry_title(self) -> str:
+        if not self.history:
+            return "[No History]"
+        return self.history[-1]["title"]
 
     def entry_count(self) -> int:
         return len(self.history)

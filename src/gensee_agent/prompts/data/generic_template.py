@@ -3,6 +3,10 @@ TEMPLATE = """
 
 ====
 
+{{rules}}
+
+====
+
 {{tool_use}}
 
 ====

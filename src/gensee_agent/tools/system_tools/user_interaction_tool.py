@@ -4,9 +4,9 @@ from gensee_agent.configs.configs import BaseConfig, register_configs
 from gensee_agent.exceptions.gensee_exceptions import ToolExecutionError
 from gensee_agent.tools.base import BaseTool, public_api
 
-class UserInteractionTool(BaseTool):
+class UserInteraction(BaseTool):
 
-    @register_configs("user_interaction_tool")
+    @register_configs("user_interaction")
     class Config(BaseConfig):
         pass
 

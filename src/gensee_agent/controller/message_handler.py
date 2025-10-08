@@ -1,4 +1,5 @@
 import html
+import json
 import re
 from typing import Optional
 from defusedxml import ElementTree as ET
@@ -12,32 +13,68 @@ class MessageHandler:
     def __init__(self, config: dict):
         pass
 
-    # Regex for sloppy inputs
-    _BARE_AMP = re.compile(r'&(?!#\d+;|#x[0-9A-Fa-f]+;|[A-Za-z][A-Za-z0-9._-]*;)')
-    _BAD_CTRL = re.compile(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]')
-    _STRAY_LT = re.compile(r'<(?!(?:\?|!|/?[A-Za-z_]))')
-
-    def sanitize_xml(self, xml_text: str, escape_lt=False) -> str:
-        """Escape invalid chars to make XML parseable."""
-        if not isinstance(xml_text, str):
-            xml_text = xml_text.decode("utf-8", errors="replace")
-
-        xml_text = self._BAD_CTRL.sub("", xml_text)
-        xml_text = self._BARE_AMP.sub("&amp;", xml_text)
-
-        if escape_lt:
-            xml_text = self._STRAY_LT.sub("&lt;", xml_text)
-
-        return xml_text
-
-    def get_original_text(self, text: Optional[str]) -> Optional[str]:
+    def extract_tool_use(self, message: str) -> Optional[ToolUse]:
         """
-        Extract text from an XML element, but unescape entities
-        (so you get back the original sloppy content).
+        Parse LLM response to extract tool use with JSON arguments.
+
+        Expected format:
+        <tool_use>
+        <name>tool_name</name>
+        <arguments>
+        {
+          "param": "value"
+        }
+        </arguments>
+        </tool_use>
+
+        Or without arguments:
+        <tool_use>
+        <name>tool_name</name>
+        </tool_use>
         """
-        if text is None:
+        # Pattern with optional arguments section
+        pattern = r'<tool_use>\s*<name>(.*?)</name>(?:\s*<arguments>(.*?)</arguments>)?\s*</tool_use>'
+        match = re.search(pattern, message, re.DOTALL | re.IGNORECASE)
+
+        if not match:
             return None
-        return html.unescape(text)
+
+        tool_name = match.group(1).strip()
+        arguments_str = match.group(2)  # This will be None if no arguments section
+
+        # Handle empty or missing arguments
+        if arguments_str is None or not arguments_str.strip():
+            arguments = {}
+        else:
+            try:
+                arguments = json.loads(arguments_str.strip())
+            except json.JSONDecodeError as e:
+                # Log the error for debugging
+                print(f"Failed to parse tool arguments as JSON: {e}")
+                print(f"Raw arguments: {arguments_str}")
+                return None
+
+        return ToolUse(
+            api_name=tool_name,
+            params=arguments
+        )
+
+    def extract_title(self, message: str) -> Optional[str]:
+        """
+        Parse LLM response to extract title.
+
+        Expected format:
+        <title>Your Title Here</title>
+        """
+        pattern = r'<title>(.*?)</title>'
+        match = re.search(pattern, message, re.DOTALL | re.IGNORECASE)
+
+        if not match:
+            return None
+
+        title = match.group(1).strip()
+        return title if title else None
+
 
     def handle_message(self, message_str: str) -> Optional[ToolUse]:
         """Parse the message string and extract tool use information.
@@ -46,26 +83,11 @@ class MessageHandler:
         <thinking>
             I will count occurrences of the letter "r" in the word "strawberry". The required parameters (letter and text) are known, so I\'ll call the letter-counting tool.
         </thinking>
-        <gensee.letter_counter.count_letters>
-            <letter>r</letter>
-            <text>strawberry</text>
-        </gensee.letter_counter.count_letters>
+        <tool_use>
+        ...
+        </tool_use>
+        <results>
+        ...
+        </results>
         """
-        # Parse the XML message
-        xml = "<root>" + self.sanitize_xml(message_str, escape_lt=True) + "</root>"  # Wrap in a root element
-        try:
-            root = ET.fromstring(xml)
-        except (ParseError, ExpatError) as e:
-            print(f"Error parsing XML: {e}")
-            raise ToolParsingError(f"Error parsing XML: {e}", retryable=False)
-
-        tool_use = None
-        for elem in root:
-            if elem.tag == "thinking":
-                continue
-            api_name = elem.tag
-            argmap = {child.tag: self.get_original_text(child.text) for child in elem}
-            if tool_use is not None:
-                raise ValueError("Multiple tool use tags found in the message.")
-            tool_use = ToolUse(api_name=api_name, params=argmap)
-        return tool_use
+        return self.extract_tool_use(message_str)
