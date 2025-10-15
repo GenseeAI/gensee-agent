@@ -9,6 +9,6 @@ You must follow these rules:
   - Include your thinking in the <thinking> tag.
   - Use the <tool_use> tag to specify any tool you want to use, following the TOOL USE format.
   - If you are presenting the final result of the task, use the <result> tag.
-  - If you need to ask the user a follow-up question, use the `system.user_interaction` tool following tool use format.
+{% if allow_interaction %}  - If you need to ask the user a follow-up question, use the `system.user_interaction` tool following tool use format.{% else %}  - Do not ask follow-up questions, use your best judgement.{% endif %}
   - Put your conclusions in the <result> tag.
 """

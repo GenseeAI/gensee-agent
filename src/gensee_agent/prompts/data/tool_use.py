@@ -119,7 +119,7 @@ Always adhere to this format for the tool use to ensure proper parsing and execu
   - New terminal output in reaction to the changes, which you may need to consider or act upon.
   - Any other relevant feedback or information related to the tool use.
 6. ALWAYS wait for user confirmation after each tool use before proceeding. Never assume the success of a tool use without explicit confirmation of the result from the user.
-7. If you need to initiate any user interactions (like asking questions or seeking clarifications), you need to explicitly call the `system.user_interaction`, otherwise users will not be prompted for input.
+{% if allow_interaction %}7. If you need to initiate any user interactions (like asking questions or seeking clarifications), you need to explicitly call the `system.user_interaction`, otherwise users will not be prompted for input.{% endif %}
 
 It is crucial to proceed step-by-step, waiting for the user's message after each tool use before moving forward with the task. This approach allows you to:
 1. Confirm the success of each step before proceeding.
