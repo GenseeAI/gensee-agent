@@ -1,0 +1,23 @@
+{
+    "controller": {
+        "name": "deep_search_agent",
+        "allow_user_interaction": false
+    },
+
+    "llm_manager": {
+        "available_models": ["openai.gpt-5-mini"],
+        "default_model": "openai.gpt-5-mini"
+    },
+
+    "tool_manager": {
+        "available_tools": ["gensee.search"]
+    },
+
+    "prompt_manager": {
+        "generic_template_file": null
+    },
+
+    "gensee_search": {
+        "gensee_api_key": "[Gensee Search Token]"
+    }
+}
