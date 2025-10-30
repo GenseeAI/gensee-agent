@@ -70,8 +70,9 @@ class TaskManager:
         )
         # print(f"System prompt: {system_prompt['content']}")
         llm_use = LLMUse(prompts=[system_prompt])
-        llm_use.append_user_prompt(task_description)
-        self.history_manager.add_entry("llm_use", title="initiate task", entry=llm_use)
+        title = "Initiate Task"
+        llm_use.append_user_prompt(task_description, title=title)
+        self.history_manager.add_entry("llm_use", title=title, entry=llm_use)
         self.next_action = Action.LLM_USE
         self.task_state.set(TaskState.INITIALIZED)
 
@@ -110,7 +111,7 @@ class TaskManager:
             last_llm_use = cast(LLMUse, last_llm_use)
             result = await self.llm_manager.completion(last_llm_use)
             self.history_manager.add_entry("llm_response", result[-1].title, result)
-            print(f"LLM response: {result}")
+            # print(f"LLM response: {result}")
             self.next_action = Action.PARSE_LLM
 
         elif self.next_action == Action.PARSE_LLM:
@@ -165,8 +166,9 @@ class TaskManager:
             new_llm_use = last_llm_use.copy()
             if llm_response[-1].content is not None:
                 new_llm_use.append_assistant_prompt(llm_response[-1].content)
-            new_llm_use.append_user_prompt(self.tool_manager.tool_response_to_string(tool_use, tool_response))
-            self.history_manager.add_entry("llm_use", title=f"Relay to LLM of {tool_use.title()}", entry=new_llm_use)
+            title = f"Result of {tool_use.title()}"
+            new_llm_use.append_user_prompt(self.tool_manager.tool_response_to_string(tool_use, tool_response), title=title)
+            self.history_manager.add_entry("llm_use", title=title, entry=new_llm_use)
             self.next_action = Action.LLM_USE
 
         else:

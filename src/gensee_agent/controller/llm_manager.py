@@ -30,8 +30,9 @@ class LLMManager:
         if model_name not in self.models:
             raise ValueError(f"Model {model_name} is not available. Available models: {self.config.available_models}")
         model = self.models[model_name]
+        # print("LLMUse Prompts: ", llm_use.prompts)
         raw_response = await model.completion(llm_use.prompts)
-        print("Raw response: ", raw_response)
+        # print("Raw response: ", raw_response)
         return model.to_llm_responses(raw_response)
 
     async def completion_stream(self, llm_use: LLMUse) -> AsyncGenerator[LLMResponses, None]:
