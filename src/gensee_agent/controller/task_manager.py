@@ -10,7 +10,7 @@ from gensee_agent.controller.llm_manager import LLMManager
 from gensee_agent.controller.message_handler import MessageHandler
 from gensee_agent.controller.prompt_manager import PromptManager
 from gensee_agent.controller.tool_manager import ToolManager
-from gensee_agent.exceptions.gensee_exceptions import GenseeError
+from gensee_agent.exceptions.gensee_exceptions import GenseeError, ShouldStop
 
 class TaskState:
     IDLE = 0
@@ -46,7 +46,6 @@ class TaskManager:
                  allow_interaction: bool,
                  streaming: bool):
         self.task_id = uuid.uuid4().hex
-        self.task_description = ""
         self.task_state = TaskState(TaskState.IDLE)
         self.llm_manager = llm_manager
         self.tool_manager = tool_manager
@@ -56,23 +55,30 @@ class TaskManager:
         self.allow_interaction = allow_interaction
         self.streaming = streaming  # Not used yet
 
-    def create_task(self, task_description: str, history_manager: HistoryManager, additional_context: Optional[str] = None):
+    async def create_task(self, title: str, prompt: str, history_manager: HistoryManager, additional_context: Optional[str] = None):
         # TODO: Haven't used history yet.
         self.history_manager = history_manager
-        self.task_description = task_description
-        assert history_manager.entry_count() == 0, "History should be empty when creating a new task.  Not supporting resuming yet."
+        await self.history_manager.read_history()
 
-        system_prompt = self.prompt_manager.generate_system_prompt_from_template(
-            user_objective=task_description,
-            tool_descriptions=self.tool_manager.tool_descriptions,
-            allow_interaction=self.allow_interaction,
-            additional_context=additional_context,
-        )
-        # print(f"System prompt: {system_prompt['content']}")
-        llm_use = LLMUse(prompts=[system_prompt])
-        title = "Initiate Task"
-        llm_use.append_user_prompt(task_description, title=title)
-        self.history_manager.add_entry("llm_use", title=title, entry=llm_use)
+        if history_manager.entry_count() == 0:
+            # New task, so we need to generate the initial prompt.
+            system_prompt = self.prompt_manager.generate_system_prompt_from_template(
+                user_objective=prompt,
+                tool_descriptions=self.tool_manager.tool_descriptions,
+                allow_interaction=self.allow_interaction,
+                additional_context=additional_context,
+            )
+            llm_use = LLMUse(prompts=[system_prompt])
+            llm_use.append_user_prompt(prompt, title=title)
+            await self.history_manager.add_entry("llm_use", title=title, entry=llm_use)
+        else:
+            llm_use = self.history_manager.get_last_entry_of_type("llm_use")
+            if llm_use is None:
+                raise ValueError("No previous LLM use found in history.")
+            llm_use = cast(LLMUse, llm_use)
+            llm_use.append_user_prompt(prompt, title=title)  # TODO(shengqi): Make the title unique.
+            await self.history_manager.add_entry("llm_use", title=title, entry=llm_use)
+
         self.next_action = Action.LLM_USE
         self.task_state.set(TaskState.INITIALIZED)
 
@@ -82,11 +88,16 @@ class TaskManager:
             try:
                 yield self.history_manager.get_last_entry_title() + "\n"
                 next_action = await self.step()
+            except ShouldStop as e:
+                self.task_state.set(TaskState.COMPLETED)
+                print(f"Task paused for user interaction: {e}")
+                yield f"Task paused for user interaction: {e}".replace("\n", "\\n")
+                return
             except GenseeError as e:
                 self.task_state.set(TaskState.ERROR)
                 # TODO: Check whether the error is retryable, and if so, maybe retry a few times?
                 print(f"Task encountered an error: {e}")
-                yield f"Task encountered an error: {e}"
+                yield f"Task encountered an error: {e}".replace("\n", "\\n")
                 return
         result = self.history_manager.get_last_entry_of_type("llm_response")
         if result is None:
@@ -96,7 +107,7 @@ class TaskManager:
             if len(result) == 0 or result[-1].content is None:
                 yield "No result."
             else:
-                yield result[-1].content
+                yield result[-1].content.replace("\n", "\\n")
 
     async def step(self) -> Action:
         if self.task_state.get() == TaskState.ERROR:
@@ -110,7 +121,7 @@ class TaskManager:
                 raise ValueError("No previous LLM use found in history.")
             last_llm_use = cast(LLMUse, last_llm_use)
             result = await self.llm_manager.completion(last_llm_use)
-            self.history_manager.add_entry("llm_response", result[-1].title, result)
+            await self.history_manager.add_entry("llm_response", result[-1].title, result)
             # print(f"LLM response: {result}")
             self.next_action = Action.PARSE_LLM
 
@@ -121,13 +132,22 @@ class TaskManager:
                 raise ValueError("No previous LLM response found in history.")
             last_response = cast(LLMResponses, last_response)
 
+            # Record the last LLM response to form a new llm_use message
+            last_llm_use = self.history_manager.get_last_entry_of_type("llm_use")
+            if last_llm_use is None:
+                raise ValueError("No previous LLM use found in history.")
+            last_llm_use = cast(LLMUse, last_llm_use)
+            new_llm_use = last_llm_use.copy()
+            if last_response[-1].content is not None:
+                new_llm_use.append_assistant_prompt(last_response[-1].content)
+            await self.history_manager.add_entry("llm_use", title=last_response[-1].title, entry=new_llm_use)
+
             if last_response and last_response[-1].content is not None:
                 tool_use = self.message_handler.handle_message(last_response[-1].content)
             else:
                 tool_use = None
-
             if tool_use is not None:
-                self.history_manager.add_entry("tool_use", title=f"Prepare to call {tool_use.title()}", entry=tool_use)
+                await self.history_manager.add_entry("tool_use", title=f"Prepare to call {tool_use.title()}", entry=tool_use)
                 print(f"Parsed tool use: {tool_use}")
                 self.next_action = Action.TOOL_USE
             else:
@@ -141,7 +161,7 @@ class TaskManager:
                 raise ValueError("No previous tool use found in history.")
             last_tool_use = cast(ToolUse, last_tool_use)
             result = await self.tool_manager.execute(last_tool_use)
-            self.history_manager.add_entry("tool_response", title=f"Getting result of {last_tool_use.title()}", entry=result)
+            await self.history_manager.add_entry("tool_response", title=f"Getting result of {last_tool_use.title()}", entry=result)
             print(f"Tool response: {result}")
             self.next_action = Action.PARSE_TOOL
 
@@ -150,25 +170,27 @@ class TaskManager:
             tool_response = self.history_manager.get_last_entry_of_type("tool_response")
             if tool_response is None:
                 raise ValueError("No previous Tool response found in history.")
-            llm_response = self.history_manager.get_last_entry_of_type("llm_response")
-            if llm_response is None:
-                raise ValueError("No previous LLM response found in history.")
-            llm_response = cast(LLMResponses, llm_response)
+            # llm_response = self.history_manager.get_last_entry_of_type("llm_response")
+            # if llm_response is None:
+            #     raise ValueError("No previous LLM response found in history.")
+            # llm_response = cast(LLMResponses, llm_response)
 
+            # ---
             last_llm_use = self.history_manager.get_last_entry_of_type("llm_use")
             if last_llm_use is None:
                 raise ValueError("No previous LLM use found in history.")
             last_llm_use = cast(LLMUse, last_llm_use)
+            # ---
             tool_use = self.history_manager.get_last_entry_of_type("tool_use")
             if tool_use is None:
                 raise ValueError("No previous tool use found in history.")
             tool_use = cast(ToolUse, tool_use)
             new_llm_use = last_llm_use.copy()
-            if llm_response[-1].content is not None:
-                new_llm_use.append_assistant_prompt(llm_response[-1].content)
+            # if llm_response[-1].content is not None:
+            #     new_llm_use.append_assistant_prompt(llm_response[-1].content)
             title = f"Result of {tool_use.title()}"
             new_llm_use.append_user_prompt(self.tool_manager.tool_response_to_string(tool_use, tool_response), title=title)
-            self.history_manager.add_entry("llm_use", title=title, entry=new_llm_use)
+            await self.history_manager.add_entry("llm_use", title=title, entry=new_llm_use)
             self.next_action = Action.LLM_USE
 
         else:

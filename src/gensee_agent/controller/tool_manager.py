@@ -22,9 +22,10 @@ class ToolManager:
         use_mcp: bool = False  # Whether to use MCP for tool execution.
         user_tool_paths: list[str] = field(default_factory=list)  # List of paths to user-defined tool scripts.
 
-    def __init__(self, config: dict, token: str, interactive_callback: Optional[Callable[[str], Awaitable[str]]] = None):
+    def __init__(self, config: dict, token: str, use_interaction: bool, interactive_callback: Optional[Callable[[str], Awaitable[str]]] = None):
         assert token == "secret_token", "This class should be initialized with create() method, not directly."
         self.config = self.Config.from_dict(config)
+        self.use_interaction = use_interaction
         if self.config.user_tool_paths:
             for path in self.config.user_tool_paths:
                 # Dynamically load user-defined tools from the specified paths
@@ -46,7 +47,7 @@ class ToolManager:
             tool_name: _TOOL_REGISTRY[tool_name](tool_name, config)
             for tool_name in self.config.available_tools
         }
-        if interactive_callback is not None:
+        if self.use_interaction:
             tool_name = f"system{Settings.SEPARATOR}user_interaction"
             interaction_tool = UserInteraction(tool_name, config, callback=interactive_callback)
 
@@ -59,8 +60,8 @@ class ToolManager:
             self.config.available_tools.append(tool_name)
 
     @classmethod
-    async def create(cls, config: dict, interactive_callback: Optional[Callable[[str], Awaitable[str]]] = None) -> "ToolManager":
-        self = cls(config, token="secret_token", interactive_callback=interactive_callback)
+    async def create(cls, config: dict, use_interaction: bool, interactive_callback: Optional[Callable[[str], Awaitable[str]]] = None) -> "ToolManager":
+        self = cls(config, token="secret_token", use_interaction=use_interaction, interactive_callback=interactive_callback)
         await self.init_mcp(config)
         return self
 

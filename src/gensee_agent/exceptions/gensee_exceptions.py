@@ -16,3 +16,6 @@ class ToolExecutionError(GenseeError):
 
 class ToolParsingError(GenseeError):
     """Custom exception for errors during tool parsing."""
+
+class ShouldStop(GenseeError):
+    """Custom exception to indicate that the process should stop."""
