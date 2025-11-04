@@ -39,9 +39,9 @@ class HistoryManager:
 
         if self.config.redis_url is not None:
             if self.config.is_redis_cluster:
-                self.redis_client = RedisCluster.from_url(self.config.redis_url)
+                self.redis_client = RedisCluster.from_url(self.config.redis_url, decode_responses=True)
             else:
-                self.redis_client = Redis.from_url(self.config.redis_url)
+                self.redis_client = Redis.from_url(self.config.redis_url, decode_responses=True)
             assert session_id is not None, "session_id must be provided if redis_url is set."
         else:
             self.redis_client = None
