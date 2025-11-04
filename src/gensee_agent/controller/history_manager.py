@@ -4,7 +4,7 @@ import json
 import os
 from typing import Any, Optional
 from dataclasses import asdict, is_dataclass
-import redis.asyncio as redis
+from redis.asyncio import Redis, RedisCluster
 
 from gensee_agent.configs.configs import BaseConfig, register_configs
 from gensee_agent.controller.dataclass.llm_use import LLMUse
@@ -26,6 +26,7 @@ class HistoryManager:
     class Config(BaseConfig):
         history_dump_path: Optional[str] = None  # Path to dump history, if needed.
         redis_url: Optional[str] = None  # Redis URL for storing history, if needed.
+        is_redis_cluster: bool = False  # Whether the Redis instance is a cluster.
 
     def __init__(self, config: dict, session_id: Optional[str] = None):
         self.config = self.Config.from_dict(config)
@@ -37,7 +38,10 @@ class HistoryManager:
             self.dump_path = None
 
         if self.config.redis_url is not None:
-            self.redis_client = redis.from_url(self.config.redis_url)
+            if self.config.is_redis_cluster:
+                self.redis_client = RedisCluster.from_url(self.config.redis_url)
+            else:
+                self.redis_client = Redis.from_url(self.config.redis_url)
             assert session_id is not None, "session_id must be provided if redis_url is set."
         else:
             self.redis_client = None
