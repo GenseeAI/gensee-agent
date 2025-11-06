@@ -23,9 +23,9 @@ class UserInteraction(BaseTool):
         """Ask the user a follow-up question and get their response.
         Args:
             question (str): The question to ask the user.
-            options (str): Optional comma-separated list of options for the user to choose from: for example, "Red, Blue", default is no options.
+            options (str): Optional pipe-separated (|) list of options for the user to choose from: for example, "Red|Blue", default is no options.
             multiple_choice (bool): Whether the user can select multiple options, default is False.
-            actions (str | None): Optional actions that the user can take for this question. For example: "Continue, Stop".
+            actions (str | None): Optional actions that the user can take for this question. For example: "Continue|Stop".
         Returns:
             str: The user's response.
         """
@@ -44,16 +44,16 @@ class UserInteraction(BaseTool):
             questions ((list[dict])):
                 The questions to ask the user, in the following json-encoded format:
                 [
-                    {"id": 1, "question": "Question 1: Do you want to continue", "options": "Yes, No", "multiple_choice": false},
-                    {"id": 2, "question": "Question 2: What do you want for dinner", "options": "Pizza, Salad, Sushi", "multiple_choice": true},
+                    {"id": 1, "question": "Question 1: Do you want to continue", "options": "Yes|No", "multiple_choice": false},
+                    {"id": 2, "question": "Question 2: What do you want for dinner", "options": "Pizza|Salad|Sushi", "multiple_choice": true},
                     {"id": 3, "question": "Question 3: Any additional comments?"}
                     ...
                 ]
-                Each question can have optional options for the user to choose from, separated by commas.  `id` and `question` fields are required.
+                Each question can have optional options for the user to choose from, separated by pipe symbol (|).  `id` and `question` fields are required.
             prelude (str):
                 An optional prelude message to the user before asking the questions, to provide users more context.
             actions (str | None):
-                Optional actions that the user can take for all these actions.  For example: "Continue, Stop".
+                Optional actions that the user can take for all these actions.  For example: "Continue|Stop".
                 If not specified, by default there is a "Submit" action.
 
         Returns:
