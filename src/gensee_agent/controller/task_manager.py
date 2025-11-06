@@ -83,10 +83,15 @@ class TaskManager:
         self.task_state.set(TaskState.INITIALIZED)
 
     async def start(self) -> AsyncIterator[str]:
+
+        yield self.history_manager.get_last_entry_title()
+
         next_action = self.next_action
         while(next_action != Action.NONE):
             try:
-                yield self.history_manager.get_last_entry_title() + "\n"
+                if next_action == Action.PARSE_LLM:
+                    # Only output state change at LLM_USE stage, whose next stage is PARSE_LLM
+                    yield self.history_manager.get_last_entry_title()
                 next_action = await self.step()
             except ShouldStop as e:
                 self.task_state.set(TaskState.COMPLETED)

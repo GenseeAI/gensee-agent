@@ -56,4 +56,4 @@ class Controller:
         history_manager = HistoryManager(self.raw_config, session_id=session_id)
         await task_manager.create_task(title, task, history_manager=history_manager, additional_context=additional_context)
         async for chunk in task_manager.start():
-            yield chunk
+            yield chunk + "\n"
