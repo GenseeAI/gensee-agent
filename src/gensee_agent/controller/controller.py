@@ -1,5 +1,6 @@
 from typing import AsyncIterator, Awaitable, Callable, Optional
-from gensee_agent.configs.configs import BaseConfig, register_configs
+from gensee_agent.utils.configs import BaseConfig, register_configs
+from gensee_agent.controller.dataclass.llm_use import LLMUse
 from gensee_agent.controller.history_manager import HistoryManager
 from gensee_agent.controller.message_handler import MessageHandler
 from gensee_agent.controller.llm_manager import LLMManager
@@ -56,4 +57,40 @@ class Controller:
         history_manager = HistoryManager(self.raw_config, session_id=session_id)
         await task_manager.create_task(title, task, history_manager=history_manager, additional_context=additional_context)
         async for chunk in task_manager.start():
-            yield chunk + "\n"
+            yield chunk
+
+    async def append_context(self, session_id: str, title: str, role: str, prompt: str, additional_context: Optional[str] = None):
+        history_manager = HistoryManager(self.raw_config, session_id=session_id)
+        if role not in ["system", "user", "assistant"]:
+            raise ValueError("Role must be one of 'system', 'user', or 'assistant'.")
+        if role == "system":
+            assert self.tool_manager is not None
+            system_prompt = self.prompt_manager.generate_system_prompt_from_template(
+                user_objective=prompt,
+                tool_descriptions=self.tool_manager.tool_descriptions,
+                allow_interaction=self.config.allow_user_interaction,
+                additional_context=additional_context,
+            )
+            if await history_manager.read_history():
+                # There is a history, so we directly update the system prompt
+                llm_use: LLMUse = history_manager.get_last_entry_of_type("llm_use").copy()
+            else:
+                # No history, so we create a new llm_use entry
+                llm_use = LLMUse([])
+
+            llm_use.set_or_update_system_prompt(system_prompt["role"], system_prompt["content"])
+            await history_manager.add_entry("llm_use", title, llm_use)
+        else:
+            if await history_manager.read_history():
+                # There is a history, so we directly update the system prompt
+                llm_use: LLMUse = history_manager.get_last_entry_of_type("llm_use").copy()
+            else:
+                raise ValueError("Adding user/assistant message requires system prompt to be set first.")
+            if role == "user":
+                llm_use.append_user_prompt(prompt, title)
+            else:
+                # Check if the title already exists in the prompt
+                if not llm_use.has_title(prompt):
+                    prompt = llm_use.add_title(prompt, title)
+                llm_use.append_assistant_prompt(prompt)
+        await history_manager.add_entry("llm_use", title, llm_use)

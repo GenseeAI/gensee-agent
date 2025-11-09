@@ -3,7 +3,7 @@ from dataclasses import field
 
 from mcp import ClientSession, StdioServerParameters, stdio_client
 
-from gensee_agent.configs.configs import BaseConfig, register_configs
+from gensee_agent.utils.configs import BaseConfig, register_configs
 
 class McpHub:
 

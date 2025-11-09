@@ -3,7 +3,7 @@ from typing import Any, Optional
 from slack_sdk.web.async_client import AsyncWebClient
 from slack_sdk.errors import SlackApiError
 
-from gensee_agent.configs.configs import BaseConfig, register_configs
+from gensee_agent.utils.configs import BaseConfig, register_configs
 from gensee_agent.exceptions.gensee_exceptions import ToolExecutionError
 from gensee_agent.settings import Settings
 from gensee_agent.tools.base import BaseTool, register_tool, public_api

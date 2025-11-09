@@ -11,6 +11,7 @@ from gensee_agent.controller.message_handler import MessageHandler
 from gensee_agent.controller.prompt_manager import PromptManager
 from gensee_agent.controller.tool_manager import ToolManager
 from gensee_agent.exceptions.gensee_exceptions import GenseeError, ShouldStop
+from gensee_agent.utils.streaming_data import StreamingData
 
 class TaskState:
     IDLE = 0
@@ -84,35 +85,56 @@ class TaskManager:
 
     async def start(self) -> AsyncIterator[str]:
 
-        yield self.history_manager.get_last_entry_title()
+        yield StreamingData.status(
+            session_id=self.task_id,
+            message=self.history_manager.get_last_entry_title(),
+        ).to_streaming_output()
 
         next_action = self.next_action
         while(next_action != Action.NONE):
             try:
                 if next_action == Action.PARSE_LLM:
                     # Only output state change at LLM_USE stage, whose next stage is PARSE_LLM
-                    yield self.history_manager.get_last_entry_title()
+                    yield StreamingData.status(
+                        session_id=self.task_id,
+                        message=self.history_manager.get_last_entry_title(),
+                    ).to_streaming_output()
                 next_action = await self.step()
             except ShouldStop as e:
                 self.task_state.set(TaskState.COMPLETED)
                 print(f"Task paused for user interaction: {e}")
-                yield f"Task paused for user interaction: {e}".replace("\n", "\\n")
+                yield StreamingData.assistant(
+                    session_id=self.task_id,
+                    message=f"Task paused for user interaction: {e}"
+                ).to_streaming_output()
                 return
             except GenseeError as e:
                 self.task_state.set(TaskState.ERROR)
                 # TODO: Check whether the error is retryable, and if so, maybe retry a few times?
                 print(f"Task encountered an error: {e}")
-                yield f"Task encountered an error: {e}".replace("\n", "\\n")
+                yield StreamingData.error(
+                    session_id=self.task_id,
+                    message=f"Task encountered an error: {e}"
+                ).to_streaming_output()
                 return
         result = self.history_manager.get_last_entry_of_type("llm_response")
         if result is None:
-            yield "No result."
+            yield StreamingData.assistant(
+                session_id=self.task_id,
+                message="No result."
+            ).to_streaming_output()
         else:
             result = cast(LLMResponses, result)
             if len(result) == 0 or result[-1].content is None:
-                yield "No result."
+                yield StreamingData.assistant(
+                    session_id=self.task_id,
+                    message="No result."
+                ).to_streaming_output()
             else:
-                yield result[-1].content.replace("\n", "\\n")
+                yield StreamingData.assistant(
+                    session_id=self.task_id,
+                    message=result[-1].content
+                ).to_streaming_output()
 
     async def step(self) -> Action:
         if self.task_state.get() == TaskState.ERROR:

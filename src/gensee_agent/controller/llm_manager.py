@@ -1,5 +1,5 @@
 from typing import AsyncGenerator
-from gensee_agent.configs.configs import BaseConfig, register_configs
+from gensee_agent.utils.configs import BaseConfig, register_configs
 from gensee_agent.controller.dataclass.llm_response import LLMResponses
 from gensee_agent.controller.dataclass.llm_use import LLMUse
 from gensee_agent.models.base import _MODEL_REGISTRY

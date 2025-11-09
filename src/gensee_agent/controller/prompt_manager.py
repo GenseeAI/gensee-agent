@@ -4,7 +4,7 @@ import jinja2.meta
 import os
 
 from typing import Optional
-from gensee_agent.configs.configs import BaseConfig, register_configs
+from gensee_agent.utils.configs import BaseConfig, register_configs
 
 _AVAILABLE_PROMPT_SECTIONS = [
     "agent_role",

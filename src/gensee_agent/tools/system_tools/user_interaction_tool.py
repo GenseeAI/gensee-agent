@@ -1,6 +1,6 @@
 from typing import Awaitable, Callable, Optional
 
-from gensee_agent.configs.configs import BaseConfig, register_configs
+from gensee_agent.utils.configs import BaseConfig, register_configs
 from gensee_agent.exceptions.gensee_exceptions import ToolExecutionError, ShouldStop
 from gensee_agent.tools.base import BaseTool, public_api
 

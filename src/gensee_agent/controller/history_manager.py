@@ -6,7 +6,7 @@ from typing import Any, Optional
 from dataclasses import asdict, is_dataclass
 from redis.asyncio import Redis, RedisCluster
 
-from gensee_agent.configs.configs import BaseConfig, register_configs
+from gensee_agent.utils.configs import BaseConfig, register_configs
 from gensee_agent.controller.dataclass.llm_use import LLMUse
 
 class CustomJSONEncoder(json.JSONEncoder):

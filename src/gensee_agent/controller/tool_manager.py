@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Optional
 
-from gensee_agent.configs.configs import BaseConfig, register_configs
+from gensee_agent.utils.configs import BaseConfig, register_configs
 from gensee_agent.controller.dataclass.tool_use import ToolUse
 from gensee_agent.controller.mcp_hub import McpHub
 from gensee_agent.exceptions.gensee_exceptions import ToolExecutionError
