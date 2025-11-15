@@ -26,7 +26,7 @@ class GenseeSearch(BaseTool):
         Returns:
             str: A formatted string containing the search results.
         """
-        url = "https://platform.gensee.ai/tool/search"
+        url = "https://app.gensee.ai/api/search"
 
         payload = {
             "query": query,
