@@ -29,10 +29,8 @@ class HistoryManager:
     @register_configs("history_manager")
     class Config(BaseConfig):
         history_dump_path: Optional[str] = None  # Path to dump history, if needed.
-        redis_url: Optional[str] = None  # Redis URL for storing history, if needed.
-        is_redis_cluster: bool = False  # Whether the Redis instance is a cluster.
 
-    def __init__(self, config: dict, session_id: Optional[str] = None):
+    def __init__(self, config: dict, session_id: Optional[str] = None, redis_client: Optional[Redis | RedisCluster] = None):
         self.config = self.Config.from_dict(config)
         if self.config.history_dump_path is not None:
             # Add the current timestamp to the dump path to avoid overwriting
@@ -41,14 +39,7 @@ class HistoryManager:
         else:
             self.dump_path = None
 
-        if self.config.redis_url is not None:
-            if self.config.is_redis_cluster:
-                self.redis_client = RedisCluster.from_url(self.config.redis_url, decode_responses=True)
-            else:
-                self.redis_client = Redis.from_url(self.config.redis_url, decode_responses=True)
-            assert session_id is not None, "session_id must be provided if redis_url is set."
-        else:
-            self.redis_client = None
+        self.redis_client = redis_client
         self.session_id = session_id
         self.history = []
 
@@ -77,6 +68,7 @@ class HistoryManager:
         if data is None:
             return None
         history_entry = json.loads(data)
+        logger.info(f"Loaded history for session_id {self.session_id}")
         return history_entry
 
     async def read_history(self) -> bool:
@@ -98,7 +90,11 @@ class HistoryManager:
             # Don't overwrite existing history
             return
         if self.redis_client is not None and self.session_id is not None:
-            await self.redis_client.set(self.session_id, json.dumps(history, separators=(',', ':'), indent=None) + "\n")
+            response = await self.redis_client.set(self.session_id, json.dumps(history, separators=(',', ':'), indent=None) + "\n")
+            if not response:
+                logger.error(f"Failed to set history for session_id {self.session_id}")
+            else:
+                logger.info(f"Set history for session_id {self.session_id}")
         history["entry"] = LLMUse(**history["entry"])
         self.history = [history]
 

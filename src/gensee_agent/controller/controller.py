@@ -1,4 +1,6 @@
 from typing import AsyncIterator, Awaitable, Callable, Optional
+
+from redis.asyncio import Redis, RedisCluster
 from gensee_agent.utils.configs import BaseConfig, register_configs
 from gensee_agent.controller.dataclass.llm_use import LLMUse
 from gensee_agent.controller.history_manager import HistoryManager
@@ -36,13 +38,14 @@ class Controller:
             self.tool_manager = await ToolManager.create(config, use_interaction=False)
         return self
 
-    async def run(self, title: str, task: str, session_id: Optional[str] = None, additional_context: Optional[str] = None) -> AsyncIterator[str]:
+    async def run(self, title: str, task: str, session_id: Optional[str] = None, additional_context: Optional[str] = None,
+                  redis_client: Optional[Redis|RedisCluster] = None) -> AsyncIterator[str]:
         assert isinstance(self.tool_manager, ToolManager)
 
-        self.config.pretty_print()
-        self.llm_manager.config.pretty_print()
-        self.prompt_manager.config.pretty_print()
-        print(f"Available tools: {list(self.tool_manager.tools.values()) if hasattr(self.tool_manager, 'tools') and self.tool_manager.tools else []}")
+        # self.config.pretty_print()
+        # self.llm_manager.config.pretty_print()
+        # self.prompt_manager.config.pretty_print()
+        # print(f"Available tools: {list(self.tool_manager.tools.values()) if hasattr(self.tool_manager, 'tools') and self.tool_manager.tools else []}")
         print(f"Controller {self.config.name} is running...")
 
         task_manager = TaskManager(
@@ -54,13 +57,13 @@ class Controller:
             streaming=self.config.streaming,
         )
 
-        history_manager = HistoryManager(self.raw_config, session_id=session_id)
+        history_manager = HistoryManager(self.raw_config, session_id=session_id, redis_client=redis_client)
         await task_manager.create_task(title, task, history_manager=history_manager, additional_context=additional_context)
         async for chunk in task_manager.start():
             yield chunk
 
-    async def append_context(self, session_id: str, title: str, role: str, prompt: str, additional_context: Optional[str] = None):
-        history_manager = HistoryManager(self.raw_config, session_id=session_id)
+    async def append_context(self, session_id: str, title: str, role: str, prompt: str, additional_context: Optional[str] = None, redis_client: Optional[Redis|RedisCluster] = None):
+        history_manager = HistoryManager(self.raw_config, session_id=session_id, redis_client=redis_client)
         if role not in ["system", "user", "assistant"]:
             raise ValueError("Role must be one of 'system', 'user', or 'assistant'.")
         if role == "system":
