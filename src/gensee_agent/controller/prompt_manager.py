@@ -17,19 +17,26 @@ _AVAILABLE_PROMPT_SECTIONS = [
 class PromptManager:
     @register_configs("prompt_manager")
     class Config(BaseConfig):
-        generic_template_file: Optional[str] = None  # Path to the generic template file.  None to use default.
-
+        template_dir: Optional[str] = None  # Path to the template directory.  None to use default.
+        template_suffix: str = ".md.j2"  # Suffix for template files. Default is ".md.j2".
 
     def __init__(self, config: dict):
         self.config = self.Config.from_dict(config)
+        self.template_files = {}
 
-        if self.config.generic_template_file:
-            if not os.path.isfile(self.config.generic_template_file):
-                raise ValueError(f"Generic template file {self.config.generic_template_file} does not exist.")
-            self.template = open(self.config.generic_template_file, "r").read()
-        else:
-            from gensee_agent.prompts.data.generic_template import TEMPLATE as default_template
-            self.template = default_template
+        if self.config.template_dir is not None:
+            if not os.path.isdir(self.config.template_dir):
+                raise ValueError(f"Template directory {self.config.template_dir} does not exist.")
+
+            for filename in os.listdir(self.config.template_dir):
+                if filename.endswith(self.config.template_suffix):
+                    filepath = os.path.join(self.config.template_dir, filename)
+                    base_name = os.path.splitext(filename)[0]
+                    with open(filepath, "r") as f:
+                        self.template_files[base_name] = f.read()
+
+        from gensee_agent.prompts.data.generic_template import TEMPLATE as default_template
+        self.template = default_template
 
         self.template_variables = jinja2.meta.find_undeclared_variables(jinja2.Environment().parse(self.template))
         if not self.template_variables.issubset(set(_AVAILABLE_PROMPT_SECTIONS)):
@@ -40,12 +47,20 @@ class PromptManager:
             if section not in self.template_variables:
                 continue
             try:
-                section_module = __import__(f"gensee_agent.prompts.data.{section}", fromlist=["TEMPLATE"])
-                self.sections[section] = {
-                    "template": section_module.TEMPLATE,
-                    "variables": jinja2.meta.find_undeclared_variables(jinja2.Environment().parse(section_module.TEMPLATE)),
-                }
-                print(f"Loaded prompt section {section} with variables {self.sections[section]['variables']}")
+                if section in self.template_files:
+                    section_template = self.template_files[section]
+                    self.sections[section] = {
+                        "template": section_template,
+                        "variables": jinja2.meta.find_undeclared_variables(jinja2.Environment().parse(section_template)),
+                    }
+                    print(f"Loaded prompt section {section} from custom template with variables {self.sections[section]['variables']}")
+                else:
+                    section_module = __import__(f"gensee_agent.prompts.data.{section}", fromlist=["TEMPLATE"])
+                    self.sections[section] = {
+                        "template": section_module.TEMPLATE,
+                        "variables": jinja2.meta.find_undeclared_variables(jinja2.Environment().parse(section_module.TEMPLATE)),
+                    }
+                    print(f"Loaded prompt section {section} from system template with variables {self.sections[section]['variables']}")
             except ImportError:
                 raise ImportError(f"Could not import prompt section {section} from gensee_agent.prompts.data.{section}")
 

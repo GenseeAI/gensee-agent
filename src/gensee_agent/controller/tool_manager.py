@@ -14,6 +14,9 @@ from gensee_agent.tools.base import _TOOL_REGISTRY
 from gensee_agent.tools.system_tools.mcp_tool import McpTool
 from gensee_agent.tools.system_tools.user_interaction_tool import UserInteraction
 from gensee_agent.settings import Settings
+from gensee_agent.utils.logging import configure_logger
+
+logger = configure_logger(__name__)
 
 class ToolManager:
     @register_configs("tool_manager")
@@ -99,6 +102,7 @@ class ToolManager:
         tool_name = tool_use.tool_name()
         func_name = tool_use.func_name()
         if tool_name not in self.tools:
+            logger.error(f"Requested tool use {tool_use} but tool {tool_name} is not available. Available tools: {self.config.available_tools}")
             raise ToolExecutionError(f"Tool {tool_name} is not available. Available tools: {self.config.available_tools}", retryable=False)
         tool = self.tools[tool_name]
         if func_name not in tool._public_api_metadata:
