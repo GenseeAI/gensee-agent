@@ -5,8 +5,12 @@ import os
 
 from typing import Optional
 from gensee_agent.utils.configs import BaseConfig, register_configs
+from gensee_agent.utils.logging import configure_logger
+
+logger = configure_logger(__name__)
 
 _AVAILABLE_PROMPT_SECTIONS = [
+    "generic_template",
     "agent_role",
     "rules",
     "tool_use",
@@ -35,8 +39,14 @@ class PromptManager:
                     with open(filepath, "r") as f:
                         self.template_files[base_name] = f.read()
 
-        from gensee_agent.prompts.data.generic_template import TEMPLATE as default_template
-        self.template = default_template
+        if "generic_template" in self.template_files:
+            logger.info(f"Using custom generic template from {self.config.template_dir}")
+            del self.template_files["generic_template"]
+            self.template = self.template_files["generic_template"]
+        else:
+            logger.info("Using default generic template")
+            from gensee_agent.prompts.data.generic_template import TEMPLATE as default_template
+            self.template = default_template
 
         self.template_variables = jinja2.meta.find_undeclared_variables(jinja2.Environment().parse(self.template))
         if not self.template_variables.issubset(set(_AVAILABLE_PROMPT_SECTIONS)):
@@ -53,14 +63,14 @@ class PromptManager:
                         "template": section_template,
                         "variables": jinja2.meta.find_undeclared_variables(jinja2.Environment().parse(section_template)),
                     }
-                    print(f"Loaded prompt section {section} from custom template with variables {self.sections[section]['variables']}")
+                    logger.info(f"Loaded prompt section {section} from custom template with variables {self.sections[section]['variables']}")
                 else:
                     section_module = __import__(f"gensee_agent.prompts.data.{section}", fromlist=["TEMPLATE"])
                     self.sections[section] = {
                         "template": section_module.TEMPLATE,
                         "variables": jinja2.meta.find_undeclared_variables(jinja2.Environment().parse(section_module.TEMPLATE)),
                     }
-                    print(f"Loaded prompt section {section} from system template with variables {self.sections[section]['variables']}")
+                    logger.info(f"Loaded prompt section {section} from system template with variables {self.sections[section]['variables']}")
             except ImportError:
                 raise ImportError(f"Could not import prompt section {section} from gensee_agent.prompts.data.{section}")
 
