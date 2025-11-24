@@ -64,39 +64,46 @@ class HistoryManager:
         """
         if self.redis_client is None or self.session_id is None:
             return None
-        data = await self.redis_client.get(self.session_id)
-        if data is None:
-            return None
-        history_entry = json.loads(data)
-        logger.info(f"Loaded history for session_id {self.session_id}")
-        return history_entry
+        raise NotImplementedError("get_history is deprecated and not implemented.  Currently it doesn't handle model_name properly.  Needs to reimplement.")
+        # data = await self.redis_client.get(self.session_id)
+        # if data is None:
+        #     return None
+        # history_entry = json.loads(data)
+        # logger.info(f"Loaded history for session_id {self.session_id}")
+        # return history_entry
 
     async def read_history(self) -> bool:
         """
         Returns True if history exists and is loaded, False otherwise.
         """
         history_entry = await self.get_history()
-        if history_entry is not None:
-            history_entry["entry"] = LLMUse(**history_entry["entry"])
-            self.history = [history_entry]
-            return True
-        return False
+        if history_entry is None:
+            return False
+        raise NotImplementedError("read_history is deprecated and not implemented.  Currently it doesn't handle model_name properly.  Needs to reimplement.")
+        # if history_entry is not None:
+        #     history_entry["entry"] = LLMUse(**history_entry["entry"])
+        #     self.history = [history_entry]
+        #     return True
+        # return False
 
-    async def set_history(self, history: dict):
+    async def set_history(self, history: dict, model_name: Optional[str] = None):
         """
         history: dict of "name", "title", and "entry".  Entry will be a plain dict, not LLMUse class.
         """
-        if await self.get_history() is not None:
-            # Don't overwrite existing history
+        if self.redis_client is None or self.session_id is None:
             return
-        if self.redis_client is not None and self.session_id is not None:
-            response = await self.redis_client.set(self.session_id, json.dumps(history, separators=(',', ':'), indent=None) + "\n")
-            if not response:
-                logger.error(f"Failed to set history for session_id {self.session_id}")
-            else:
-                logger.info(f"Set history for session_id {self.session_id}")
-        history["entry"] = LLMUse(**history["entry"])
-        self.history = [history]
+        raise NotImplementedError("set_history is deprecated and not implemented.  Currently it doesn't handle model_name properly.  Needs to reimplement.")
+        # if await self.get_history() is not None:
+        #     # Don't overwrite existing history
+        #     return
+        # if self.redis_client is not None and self.session_id is not None:
+        #     response = await self.redis_client.set(self.session_id, json.dumps(history, separators=(',', ':'), indent=None) + "\n")
+        #     if not response:
+        #         logger.error(f"Failed to set history for session_id {self.session_id}")
+        #     else:
+        #         logger.info(f"Set history for session_id {self.session_id}")
+        # history["entry"] = LLMUse(**history["entry"], model_name=model_name)
+        # self.history = [history]
 
     def get_last_entry_of_type(self, name: str) -> Any:
         for record in reversed(self.history):

@@ -14,7 +14,7 @@ class OpenAIModel(BaseModel):
         super().__init__(model_name, config)
         self.api_key = os.environ.get("OPENAI_API_KEY")
         self.client = AsyncOpenAI(api_key=self.api_key)
-        self.model_name = model_name.split(Settings.SEPARATOR)[-1]
+        self.model_name = model_name.split(Settings.SEPARATOR, maxsplit=1)[-1]
         self.message_handler = MessageHandler(config={})
 
     async def completion(self, messages: list) -> ChatCompletion:

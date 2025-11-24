@@ -38,7 +38,7 @@ class Controller:
             self.tool_manager = await ToolManager.create(config, use_interaction=False)
         return self
 
-    async def run(self, title: str, task: str, session_id: Optional[str] = None, additional_context: Optional[str] = None,
+    async def run(self, title: str, task: str, *, model_name: Optional[str] = None, session_id: Optional[str] = None, additional_context: Optional[str] = None,
                   redis_client: Optional[Redis|RedisCluster] = None) -> AsyncIterator[str]:
         assert isinstance(self.tool_manager, ToolManager)
 
@@ -58,11 +58,11 @@ class Controller:
         )
 
         history_manager = HistoryManager(self.raw_config, session_id=session_id, redis_client=redis_client)
-        await task_manager.create_task(title, task, history_manager=history_manager, additional_context=additional_context)
+        await task_manager.create_task(title, task, model_name=model_name, history_manager=history_manager, additional_context=additional_context)
         async for chunk in task_manager.start():
             yield chunk
 
-    async def append_context(self, session_id: str, title: str, role: str, prompt: str, additional_context: Optional[str] = None, redis_client: Optional[Redis|RedisCluster] = None):
+    async def append_context(self, session_id: str, title: str, role: str, prompt: str, *, model_name: Optional[str] = None, additional_context: Optional[str] = None, redis_client: Optional[Redis|RedisCluster] = None):
         history_manager = HistoryManager(self.raw_config, session_id=session_id, redis_client=redis_client)
         if role not in ["system", "user", "assistant"]:
             raise ValueError("Role must be one of 'system', 'user', or 'assistant'.")
@@ -79,7 +79,7 @@ class Controller:
                 llm_use: LLMUse = history_manager.get_last_entry_of_type("llm_use").copy()
             else:
                 # No history, so we create a new llm_use entry
-                llm_use = LLMUse([])
+                llm_use = LLMUse([], model_name=model_name)
 
             llm_use.set_or_update_system_prompt(system_prompt["role"], system_prompt["content"])
             await history_manager.add_entry("llm_use", title, llm_use)
