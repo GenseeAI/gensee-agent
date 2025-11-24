@@ -12,6 +12,9 @@ from gensee_agent.controller.prompt_manager import PromptManager
 from gensee_agent.controller.tool_manager import ToolManager
 from gensee_agent.exceptions.gensee_exceptions import GenseeError, ShouldStop
 from gensee_agent.utils.streaming_data import StreamingData
+from gensee_agent.utils.logging import configure_logger
+
+logger = configure_logger(__name__)
 
 class TaskState:
     IDLE = 0
@@ -102,7 +105,7 @@ class TaskManager:
                 next_action = await self.step()
             except ShouldStop as e:
                 self.task_state.set(TaskState.COMPLETED)
-                print(f"Task paused for user interaction: {e}")
+                # logger.info(f"Task paused for user interaction: {e}"))
                 yield StreamingData.assistant(
                     session_id=self.task_id,
                     message=f"Task paused for user interaction: {e}"
@@ -111,7 +114,7 @@ class TaskManager:
             except GenseeError as e:
                 self.task_state.set(TaskState.ERROR)
                 # TODO: Check whether the error is retryable, and if so, maybe retry a few times?
-                print(f"Task encountered an error: {e}")
+                logger.error(f"Task encountered an error: {e}")
                 yield StreamingData.error(
                     session_id=self.task_id,
                     message=f"Task encountered an error: {e}"
@@ -149,7 +152,7 @@ class TaskManager:
             last_llm_use = cast(LLMUse, last_llm_use)
             result = await self.llm_manager.completion(last_llm_use)
             await self.history_manager.add_entry("llm_response", result[-1].title, result)
-            # print(f"LLM response: {result}")
+            # logger.info(f"LLM response: {result}")
             self.next_action = Action.PARSE_LLM
 
         elif self.next_action == Action.PARSE_LLM:
@@ -175,7 +178,7 @@ class TaskManager:
                 tool_use = None
             if tool_use is not None:
                 await self.history_manager.add_entry("tool_use", title=f"Prepare to call {tool_use.title()}", entry=tool_use)
-                print(f"Parsed tool use: {tool_use}")
+                logger.info(f"Parsed tool use: {tool_use}")
                 self.next_action = Action.TOOL_USE
             else:
                 # Looks to be finished.
@@ -189,7 +192,7 @@ class TaskManager:
             last_tool_use = cast(ToolUse, last_tool_use)
             result = await self.tool_manager.execute(last_tool_use)
             await self.history_manager.add_entry("tool_response", title=f"Getting result of {last_tool_use.title()}", entry=result)
-            print(f"Tool response: {result}")
+            logger.info(f"Tool response: {result}")
             self.next_action = Action.PARSE_TOOL
 
         elif self.next_action == Action.PARSE_TOOL:
@@ -222,6 +225,6 @@ class TaskManager:
 
         else:
             self.task_state.set(TaskState.COMPLETED)
-            print("Task completed.")
+            logger.info("Task completed.")
 
         return self.next_action

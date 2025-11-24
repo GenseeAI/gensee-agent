@@ -3,6 +3,9 @@ from gensee_agent.utils.configs import BaseConfig, register_configs
 from gensee_agent.controller.dataclass.llm_response import LLMResponses
 from gensee_agent.controller.dataclass.llm_use import LLMUse
 from gensee_agent.models.base import _MODEL_REGISTRY
+from gensee_agent.utils.logging import configure_logger
+
+logger = configure_logger(__name__)
 
 class LLMManager:
     @register_configs("llm_manager")
@@ -30,9 +33,9 @@ class LLMManager:
         if model_name not in self.models:
             raise ValueError(f"Model {model_name} is not available. Available models: {self.config.available_models}")
         model = self.models[model_name]
-        # print("LLMUse Prompts: ", llm_use.prompts)
+        # logger.info(f"LLMUse Prompts: {llm_use.prompts}")
         raw_response = await model.completion(llm_use.prompts)
-        # print("Raw response: ", raw_response)
+        # logger.info(f"Raw response: {raw_response}")
         return model.to_llm_responses(raw_response)
 
     # async def completion_stream(self, llm_use: LLMUse) -> AsyncGenerator[LLMResponses, None]:

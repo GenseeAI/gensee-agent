@@ -32,17 +32,19 @@ class PromptManager:
             if not os.path.isdir(self.config.template_dir):
                 raise ValueError(f"Template directory {self.config.template_dir} does not exist.")
 
+            logger.info(f"Loading templates from directory: {self.config.template_dir}")
             for filename in os.listdir(self.config.template_dir):
                 if filename.endswith(self.config.template_suffix):
                     filepath = os.path.join(self.config.template_dir, filename)
-                    base_name = os.path.splitext(filename)[0]
+                    base_name = filename[:-len(self.config.template_suffix)]
                     with open(filepath, "r") as f:
                         self.template_files[base_name] = f.read()
+            logger.info(f"Loaded template files: {list(self.template_files.keys())}")
 
         if "generic_template" in self.template_files:
             logger.info(f"Using custom generic template from {self.config.template_dir}")
-            del self.template_files["generic_template"]
             self.template = self.template_files["generic_template"]
+            del self.template_files["generic_template"]
         else:
             logger.info("Using default generic template")
             from gensee_agent.prompts.data.generic_template import TEMPLATE as default_template

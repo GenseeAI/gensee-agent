@@ -4,6 +4,9 @@ from typing import Awaitable, Callable
 from docstring_parser import parse
 
 from gensee_agent.exceptions.gensee_exceptions import ImplementationError, ToolExecutionError
+from gensee_agent.utils.logging import configure_logger
+
+logger = configure_logger(__name__)
 
 _TOOL_REGISTRY : dict[str, type["BaseTool"]] = {}
 
@@ -35,7 +38,7 @@ class BaseTool:
                     "description": doc.short_description if doc else "",
                     "parameters": properties,
                 }
-        print(f"All function metadata: {self._public_api_metadata}")
+        logger.info(f"All function metadata: {self._public_api_metadata}")
 
 
     def __repr__(self) -> str:
