@@ -38,7 +38,7 @@ class Controller:
             self.tool_manager = await ToolManager.create(config, use_interaction=False)
         return self
 
-    async def run(self, title: str, task: str, *, model_name: Optional[str] = None, session_id: Optional[str] = None, additional_context: Optional[str] = None,
+    async def run(self, title: str, task: str, *, model_name: Optional[str] = None, use_tool: bool = True, session_id: Optional[str] = None, additional_context: Optional[str] = None,
                   redis_client: Optional[Redis|RedisCluster] = None) -> AsyncIterator[str]:
         assert isinstance(self.tool_manager, ToolManager)
 
@@ -58,11 +58,11 @@ class Controller:
         )
 
         history_manager = HistoryManager(self.raw_config, session_id=session_id, redis_client=redis_client)
-        await task_manager.create_task(title, task, model_name=model_name, history_manager=history_manager, additional_context=additional_context)
+        await task_manager.create_task(title, task, model_name=model_name, use_tool=use_tool, history_manager=history_manager, additional_context=additional_context)
         async for chunk in task_manager.start():
             yield chunk
 
-    async def append_context(self, session_id: str, title: str, role: str, prompt: str, *, model_name: Optional[str] = None, additional_context: Optional[str] = None, redis_client: Optional[Redis|RedisCluster] = None):
+    async def append_context(self, session_id: str, title: str, role: str, prompt: str, *, model_name: Optional[str] = None, use_tool: bool = True, additional_context: Optional[str] = None, redis_client: Optional[Redis|RedisCluster] = None):
         history_manager = HistoryManager(self.raw_config, session_id=session_id, redis_client=redis_client)
         if role not in ["system", "user", "assistant"]:
             raise ValueError("Role must be one of 'system', 'user', or 'assistant'.")
@@ -73,6 +73,7 @@ class Controller:
                 tool_descriptions=self.tool_manager.tool_descriptions,
                 allow_interaction=self.config.allow_user_interaction,
                 additional_context=additional_context,
+                use_tool=use_tool,
             )
             if await history_manager.read_history():
                 # There is a history, so we directly update the system prompt

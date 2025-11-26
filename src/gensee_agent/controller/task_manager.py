@@ -59,7 +59,7 @@ class TaskManager:
         self.allow_interaction = allow_interaction
         self.streaming = streaming  # Not used yet
 
-    async def create_task(self, title: str, prompt: str, history_manager: HistoryManager, *, model_name: Optional[str] = None, additional_context: Optional[str] = None):
+    async def create_task(self, title: str, prompt: str, history_manager: HistoryManager, *, model_name: Optional[str] = None, use_tool: bool = True, additional_context: Optional[str] = None):
         # TODO: Haven't used history yet.
         self.history_manager = history_manager
         await self.history_manager.read_history()
@@ -70,6 +70,7 @@ class TaskManager:
                 user_objective=prompt,
                 tool_descriptions=self.tool_manager.tool_descriptions,
                 allow_interaction=self.allow_interaction,
+                use_tool=use_tool,
                 additional_context=additional_context,
             )
             llm_use = LLMUse(prompts=[system_prompt], model_name=model_name)
