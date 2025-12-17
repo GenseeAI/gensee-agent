@@ -9,6 +9,9 @@ from gensee_agent.controller.llm_manager import LLMManager
 from gensee_agent.controller.prompt_manager import PromptManager
 from gensee_agent.controller.task_manager import TaskManager
 from gensee_agent.controller.tool_manager import ToolManager
+from gensee_agent.utils.logging import configure_logger
+
+logger = configure_logger(__name__)
 
 class Controller:
 
@@ -59,8 +62,12 @@ class Controller:
 
         history_manager = HistoryManager(self.raw_config, session_id=session_id, redis_client=redis_client)
         await task_manager.create_task(title, task, model_name=model_name, use_tool=use_tool, history_manager=history_manager, additional_context=additional_context)
-        async for chunk in task_manager.start():
-            yield chunk
+        try:
+            async for chunk in task_manager.start():
+                yield chunk
+        except Exception as e:
+            logger.error(f"Error during task execution: {e}", exc_info=True)
+            raise e
 
     async def append_context(self, session_id: str, title: str, role: str, prompt: str, *, model_name: Optional[str] = None, use_tool: bool = True, additional_context: Optional[str] = None, redis_client: Optional[Redis|RedisCluster] = None):
         history_manager = HistoryManager(self.raw_config, session_id=session_id, redis_client=redis_client)
