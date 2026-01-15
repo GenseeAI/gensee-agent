@@ -31,11 +31,13 @@ class ToolManager:
         self.use_interaction = use_interaction
         if self.config.user_tool_paths:
             for path in self.config.user_tool_paths:
+                logger.info(f"Checking user-defined tools from path: {path}")
                 # Dynamically load user-defined tools from the specified paths
                 for file_path in Path(path).glob("*.py"):
                     module_name = os.path.splitext(os.path.basename(file_path))[0]
                     spec = importlib.util.spec_from_file_location(module_name, file_path)
                     if spec and spec.loader:
+                        logger.info(f"Loading user-defined tool module: {file_path}")
                         module = importlib.util.module_from_spec(spec)
                         spec.loader.exec_module(module)
                     else:
@@ -44,7 +46,7 @@ class ToolManager:
         # Check tools are available
         for tool_name in self.config.available_tools:
             if tool_name not in _TOOL_REGISTRY:
-                raise ValueError(f"Tool {tool_name} is not registered in the tool registry.")
+                raise ValueError(f"Tool {tool_name} is not registered in the tool registry.  Available tools: {list(_TOOL_REGISTRY.keys())}")
 
         self.tools = {
             tool_name: _TOOL_REGISTRY[tool_name](tool_name, config)
